@@ -45,38 +45,41 @@ namespace DataGenerator
 			using ( SqlCommand cmd = new SqlCommand () )
 			{
 				StringBuilder queryBuilder = new StringBuilder ();
-				queryBuilder.AppendFormat ( " SELECT TOP 1 1 FROM {0} {1} ", setting.Tables[0].Name, setting.Tables[0].Alias );
+				queryBuilder.AppendFormat ( " SELECT TOP 1 1 AS {0}_Exists, ", setting.Tables[0].Alias );
+				queryBuilder.AppendLine ();
 
 				foreach ( Join joiningTable in
 					setting.Tables[0].Joins.GroupBy(j => j.Table2).Select(g => g.First()) )
 				{
-					queryBuilder.AppendFormat ( " INNER JOIN {0} {1} ON ", joiningTable.Table2.Name, joiningTable.Table2.Alias );
-					queryBuilder.AppendLine ();
+					queryBuilder.AppendFormat ( @"
+(CASE WHEN EXISTS 
+	( SELECT TOP 1 1 FROM {0} {1} WHERE ", joiningTable.Table2.Name, joiningTable.Table2.Alias );
+					queryBuilder.AppendLine();
 
 					var joins = setting.Tables[0].Joins.Where ( j => j.Table2 == joiningTable.Table2 );
 
 					foreach ( Join join in joins )
 					{
-						queryBuilder.AppendFormat ( 
-							" {0}.{1} {2} {3}.{4} ",
+						queryBuilder.AppendFormat (
+							"\t\t{0}.{1} {2} {3}.{4} ",
 							join.Table1.Alias,
 							join.Column1,
-							Mapping.GetOperatorForQuery(join.Operator),
+							Mapping.GetOperatorForQuery ( join.Operator ),
 							join.Table2.Alias,
-							join.Column2);
-
-						if ( !DataExistsFor ( queryBuilder.ToString () ) )
-						{
-							// Create new data
-							CreateDummyData ( join );
-						}
+							join.Column2 );
 
 						queryBuilder.AppendLine ( " AND" );
 					}
 
 					// Removes AND: "AND\r\n" => "\r\n"
 					queryBuilder.Remove ( queryBuilder.Length - 5, 3 );
+					queryBuilder.AppendFormat ( @"	) THEN 1 ELSE 0 END) AS {0}_Exists,", joiningTable.Table2.Alias );
+					queryBuilder.AppendLine ();
 				}
+
+				// Removes trailing comma
+				queryBuilder.Remove ( queryBuilder.Length - 3, 1 );
+				queryBuilder.AppendFormat ( " FROM {0} {1} ", setting.Tables[0].Name, setting.Tables[0].Alias );
 
 				cmd.CommandText = queryBuilder.ToString ();
 				cmd.CommandType = CommandType.Text;
