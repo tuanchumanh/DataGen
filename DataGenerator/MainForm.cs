@@ -41,60 +41,83 @@ namespace DataGenerator
 
 		private List<Join> CheckJoins()
 		{
+			List<Join> failedJoins = new List<Join> ();
 			using ( SqlConnection sqlConnection1 = new SqlConnection ( connectionString ) )
 			using ( SqlCommand cmd = new SqlCommand () )
 			{
-				StringBuilder queryBuilder = new StringBuilder ();
-				queryBuilder.AppendFormat ( " SELECT TOP 1 1 AS {0}_Exists, ", setting.Tables[0].Alias );
-				queryBuilder.AppendLine ();
-
-				foreach ( Join joiningTable in
-					setting.Tables[0].Joins.GroupBy(j => j.Table2).Select(g => g.First()) )
-				{
-					queryBuilder.AppendFormat ( @"
-(CASE WHEN EXISTS 
-	( SELECT TOP 1 1 FROM {0} {1} WHERE ", joiningTable.Table2.Name, joiningTable.Table2.Alias );
-					queryBuilder.AppendLine();
-
-					var joins = setting.Tables[0].Joins.Where ( j => j.Table2 == joiningTable.Table2 );
-
-					foreach ( Join join in joins )
-					{
-						queryBuilder.AppendFormat (
-							"\t\t{0}.{1} {2} {3}.{4} ",
-							join.Table1.Alias,
-							join.Column1,
-							Mapping.GetOperatorForQuery ( join.Operator ),
-							join.Table2.Alias,
-							join.Column2 );
-
-						queryBuilder.AppendLine ( " AND" );
-					}
-
-					// Removes AND: "AND\r\n" => "\r\n"
-					queryBuilder.Remove ( queryBuilder.Length - 5, 3 );
-					queryBuilder.AppendFormat ( @"	) THEN 1 ELSE 0 END) AS {0}_Exists,", joiningTable.Table2.Alias );
-					queryBuilder.AppendLine ();
-				}
-
-				// Removes trailing comma
-				queryBuilder.Remove ( queryBuilder.Length - 3, 1 );
-				queryBuilder.AppendFormat ( " FROM {0} {1} ", setting.Tables[0].Name, setting.Tables[0].Alias );
-
-				cmd.CommandText = queryBuilder.ToString ();
 				cmd.CommandType = CommandType.Text;
 				cmd.Connection = sqlConnection1;
 
-				sqlConnection1.Open ();
-
-				int count = (int) cmd.ExecuteScalar ();
-				if ( count > 0 )
+				foreach ( Table table in setting.Tables.Where ( tbl => tbl.Joins.Count > 0 ) )
 				{
-					
+					StringBuilder queryBuilder = new StringBuilder ();
+					queryBuilder.AppendFormat ( " SELECT TOP 1 1 AS {0},", table.Alias );
+					queryBuilder.AppendLine ();
+
+					foreach ( Table joinTarget in
+						table.Joins.GroupBy ( j => j.Table2 ).Select ( g => g.First ().Table2 ) )
+					{
+						int joinNo = 1;
+						foreach ( Join join in table.Joins.Where ( j => j.Table2 == joinTarget ).OrderBy ( j => j.Column2 ) )
+						{
+							queryBuilder.AppendFormat ( @"
+(CASE WHEN EXISTS 
+	( SELECT TOP 1 * FROM {0} {1}{2} WHERE ", joinTarget.Name, joinTarget.Alias, joinNo );
+							queryBuilder.AppendLine ();
+
+							queryBuilder.AppendFormat (
+								"\t\t{0}.{1} {2} {3}{5}.{4} ",
+								join.Table1.Alias,
+								join.Column1,
+								Mapping.GetOperatorForQuery ( join.Operator ),
+								join.Table2.Alias,
+								join.Column2,
+								joinNo );
+
+							queryBuilder.AppendFormat ( @"	) THEN 1 ELSE 0 END) AS {0}{1},", joinTarget.Alias, joinNo );
+							joinNo++;
+						}
+
+						queryBuilder.AppendLine ();
+					}
+
+					// Removes trailing comma
+					queryBuilder.Remove ( queryBuilder.Length - 3, 1 );
+					queryBuilder.AppendFormat ( " FROM {0} {1} ", table.Name, table.Alias );
+
+					cmd.CommandText = queryBuilder.ToString ();
+
+					if ( sqlConnection1.State != ConnectionState.Open )
+					{
+						sqlConnection1.Open ();
+					}
+
+					DataTable result = new DataTable ();
+					try
+					{
+						using ( SqlDataReader reader = cmd.ExecuteReader () )
+						{
+							result.Load ( reader );
+						}
+					}
+					catch
+					{
+						MessageBox.Show ( cmd.CommandText, "ERROR" );
+					}
+
+					int colIdx = 1;
+					foreach ( Join join in table.Joins.OrderBy ( j => j.Table2 ).ThenBy ( j => j.Column2 ) )
+					{
+						join.TargetExists = (int)result.Rows[0][colIdx++] == 1;
+						if ( !join.TargetExists )
+						{
+							failedJoins.Add ( join );
+						}
+					}
 				}
 			}
 
-			return new List<Join> ();
+			return failedJoins;
 		}
 
 		private DataTable GetData()
@@ -158,7 +181,7 @@ namespace DataGenerator
 			return false;
 		}
 
-		private static void CreateDummyData(Join join)
+		private static void CreateDummyData(IEnumerable<Join> joins)
 		{
 
 		}
