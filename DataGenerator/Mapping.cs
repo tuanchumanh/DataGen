@@ -9,7 +9,7 @@ using System.Threading.Tasks;
 
 namespace DataGenerator
 {
-	class Mapping
+	internal class Mapping
 	{
 		public List<Table> Tables = new List<Table> ();
 
@@ -74,6 +74,27 @@ namespace DataGenerator
 			excelReader.Close ();
 		}
 
+		public static string GetOperatorForQuery( Operators op )
+		{
+			switch ( op )
+			{
+				case Operators.Equal:
+					return "=";
+				case Operators.NotEqual:
+					return "!=";
+				case Operators.GreaterThan:
+					return ">";
+				case Operators.GreaterThanOrEqual:
+					return ">=";
+				case Operators.LessThan:
+					return "<";
+				case Operators.LessThanOrEqual:
+					return "<=";
+				default:
+					throw new ArgumentException ( "OPERATOR??" );
+			}
+		}
+
 		private static Operators GetOperator( string settingValue )
 		{
 			switch ( settingValue )
@@ -94,44 +115,44 @@ namespace DataGenerator
 					throw new ArgumentException ( "OPERATOR??" );
 			}
 		}
+	}
 
-		/// <summary>
-		/// ≠,=,≧,≦,>,<
-		/// </summary>
-		public enum Operators
-		{
-			Equal,
-			NotEqual,
-			GreaterThan,
-			GreaterThanOrEqual,
-			LessThan,
-			LessThanOrEqual,
-		}
+	/// <summary>
+	/// ≠,=,≧,≦,&lt;,&gt;
+	/// </summary>
+	public enum Operators
+	{
+		Equal,
+		NotEqual,
+		GreaterThan,
+		GreaterThanOrEqual,
+		LessThan,
+		LessThanOrEqual,
+	}
 
-		public class Table
-		{
-			public string Alias { get; set; }
-			public string Name { get; set; }
-			public List<Join> Joins { get; set; }
-			public List<Condition> Conditions { get; set; }
-			private List<string> keys = new List<string> ();
-		}
+	public class Table
+	{
+		public string Alias { get; set; }
+		public string Name { get; set; }
+		public List<Join> Joins { get; set; }
+		public List<Condition> Conditions { get; set; }
+		private List<string> keys = new List<string> ();
+	}
 
-		public class Join
-		{
-			public Table Table1 { get; set; }
-			public Table Table2 { get; set; }
-			public string Column1 { get; set; }
-			public string Column2 { get; set; }
-			public Operators Operator { get; set; }
-		}
+	public class Join
+	{
+		public Table Table1 { get; set; }
+		public Table Table2 { get; set; }
+		public string Column1 { get; set; }
+		public string Column2 { get; set; }
+		public Operators Operator { get; set; }
+	}
 
-		public class Condition
-		{
-			public Table Table { get; set; }
-			public string Column { get; set; }
-			public string Value { get; set; }
-			public Operators Operator { get; set; }
-		}
+	public class Condition
+	{
+		public Table Table { get; set; }
+		public string Column { get; set; }
+		public string Value { get; set; }
+		public Operators Operator { get; set; }
 	}
 }
