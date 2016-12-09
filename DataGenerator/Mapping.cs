@@ -50,7 +50,6 @@ namespace DataGenerator
 							Operator = Mapping.GetOperator(joins["Operator"] as string),
 							Table1 = tableSetting,
 							Table2 = Tables.Where ( tableSetting2 => tableSetting2.Alias == joins["Table2"] as string ).First (),
-							TargetExists = false,
 						} );
 					}
 
@@ -61,7 +60,7 @@ namespace DataGenerator
 						{
 							Column = joins["Column"] as string,
 							Operator = Mapping.GetOperator ( joins["Operator"] as string ),
-							Value = joins["Value"] as string,
+							Value = joins["Value"],
 							Table = tableSetting,
 						} );
 					}
@@ -147,14 +146,13 @@ namespace DataGenerator
 		public string Column1 { get; set; }
 		public string Column2 { get; set; }
 		public Operators Operator { get; set; }
-		public bool TargetExists { get; set; }
 	}
 
 	public class Condition
 	{
 		public Table Table { get; set; }
 		public string Column { get; set; }
-		public string Value { get; set; }
+		public object Value { get; set; }
 		public Operators Operator { get; set; }
 	}
 }

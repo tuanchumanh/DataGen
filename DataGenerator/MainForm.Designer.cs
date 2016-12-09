@@ -28,22 +28,22 @@
 		/// </summary>
 		private void InitializeComponent()
 		{
-			this.OutputExcel = new System.Windows.Forms.Button();
+			this.startButton = new System.Windows.Forms.Button();
 			this.previewGrid = new System.Windows.Forms.DataGridView();
 			this.tableNamesComboBox = new System.Windows.Forms.ComboBox();
 			((System.ComponentModel.ISupportInitialize)(this.previewGrid)).BeginInit();
 			this.SuspendLayout();
 			// 
-			// OutputExcel
+			// startButton
 			// 
-			this.OutputExcel.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Right)));
-			this.OutputExcel.Location = new System.Drawing.Point(710, 418);
-			this.OutputExcel.Name = "OutputExcel";
-			this.OutputExcel.Size = new System.Drawing.Size(75, 23);
-			this.OutputExcel.TabIndex = 0;
-			this.OutputExcel.Text = "Start";
-			this.OutputExcel.UseVisualStyleBackColor = true;
-			this.OutputExcel.Click += new System.EventHandler(this.OutputExcel_Click);
+			this.startButton.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Right)));
+			this.startButton.Location = new System.Drawing.Point(710, 418);
+			this.startButton.Name = "startButton";
+			this.startButton.Size = new System.Drawing.Size(75, 23);
+			this.startButton.TabIndex = 0;
+			this.startButton.Text = "Start";
+			this.startButton.UseVisualStyleBackColor = true;
+			this.startButton.Click += new System.EventHandler(this.StartButton_Click);
 			// 
 			// previewGrid
 			// 
@@ -63,6 +63,7 @@
 			this.tableNamesComboBox.Size = new System.Drawing.Size(133, 20);
 			this.tableNamesComboBox.TabIndex = 2;
 			this.tableNamesComboBox.ValueMember = "Value";
+			this.tableNamesComboBox.SelectedIndexChanged += new System.EventHandler(this.tableNamesComboBox_SelectedIndexChanged);
 			// 
 			// MainForm
 			// 
@@ -71,9 +72,9 @@
 			this.ClientSize = new System.Drawing.Size(797, 453);
 			this.Controls.Add(this.tableNamesComboBox);
 			this.Controls.Add(this.previewGrid);
-			this.Controls.Add(this.OutputExcel);
+			this.Controls.Add(this.startButton);
 			this.Name = "MainForm";
-			this.Text = "DataGen";
+			this.Text = "Untitled";
 			((System.ComponentModel.ISupportInitialize)(this.previewGrid)).EndInit();
 			this.ResumeLayout(false);
 
@@ -81,7 +82,7 @@
 
 		#endregion
 
-		private System.Windows.Forms.Button OutputExcel;
+		private System.Windows.Forms.Button startButton;
 		private System.Windows.Forms.DataGridView previewGrid;
 		private System.Windows.Forms.ComboBox tableNamesComboBox;
 
