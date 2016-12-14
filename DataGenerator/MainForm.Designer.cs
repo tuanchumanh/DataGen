@@ -47,6 +47,7 @@
 			// 
 			// previewGrid
 			// 
+			this.previewGrid.ClipboardCopyMode = System.Windows.Forms.DataGridViewClipboardCopyMode.EnableAlwaysIncludeHeaderText;
 			this.previewGrid.ColumnHeadersHeightSizeMode = System.Windows.Forms.DataGridViewColumnHeadersHeightSizeMode.AutoSize;
 			this.previewGrid.Location = new System.Drawing.Point(12, 41);
 			this.previewGrid.Name = "previewGrid";

@@ -13,24 +13,39 @@ namespace DataGenerator
 
 		public static object GenerateDummyData(string columnName, Type type, int length, short numericPrecision, short numericScale)
 		{
-			if (type == typeof(System.String))
+			if (type == typeof(String))
 			{
 				if (columnName.IndexOf("Date", StringComparison.OrdinalIgnoreCase) != -1 && length == 8)
 				{
-					return RandomDate();
+					return RandomDateString();
 				}
 
 				return RandomString(length);
 			}
 
-			if (type == typeof(System.Decimal))
+			if (type == typeof(Decimal))
 			{
 				return RandomDecimal(numericPrecision, numericScale);
 			}
 
-			if (type == typeof(System.DateTime))
+			if (type == typeof(DateTime))
 			{
 				return RandomDate();
+			}
+
+			if (type == typeof(Byte))
+			{
+				return (byte)random.Next(Byte.MinValue, IntPow(10, length) - 1);
+			}
+
+			if (type == typeof(Int16)) 
+			{
+				return random.Next(Int16.MaxValue);
+			}
+
+			if (type == typeof(Int32) || type == typeof(Int64))
+			{
+				return random.Next(Int32.MaxValue);
 			}
 
 			return null;
@@ -43,9 +58,14 @@ namespace DataGenerator
 				.Select(s => s[random.Next(s.Length)]).ToArray());
 		}
 
-		public static string RandomDate(string format = "yyyyMMdd")
+		public static DateTime RandomDate()
 		{
-			return DateTime.UtcNow.AddDays(random.Next(365)).ToString(format);
+			return DateTime.UtcNow.AddDays(random.Next(365));
+		}
+
+		public static string RandomDateString(string format = "yyyyMMdd")
+		{
+			return RandomDate().ToString(format);
 		}
 
 		public static decimal RandomDecimal(short precision, short scale)
@@ -65,5 +85,11 @@ namespace DataGenerator
 			return d;
 		}
 
+		private static int IntPow(int bas, int exp)
+		{
+			return Enumerable
+				  .Repeat(bas, exp)
+				  .Aggregate(1, (a, b) => a * b);
+		}
 	}
 }

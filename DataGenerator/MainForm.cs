@@ -438,6 +438,7 @@ namespace DataGenerator
 			using (SqlConnection conn = new SqlConnection(connectionString))
 			using (SqlCommand cmd = new SqlCommand())
 			{
+				// Get schema
 				cmd.CommandText = string.Format("SELECT * FROM {0}", table.Name);
 				cmd.CommandType = CommandType.Text;
 				cmd.Connection = conn;
@@ -452,15 +453,27 @@ namespace DataGenerator
 				DataTable result = new DataTable();
 				foreach (DataRow columnInfo in schemaTable.Rows)
 				{
-					result.Columns.Add(columnInfo["ColumnName"] as string);
+					string colName = columnInfo["ColumnName"] as string;
+
+					DataColumn column = new DataColumn();
+					column.ColumnName = colName;
+					column.DataType = (Type)columnInfo["DataType"];
+
+					result.Columns.Add(column);
+				}
+
+				foreach (DataRow columnInfo in schemaTable.Rows)
+				{
+					
 				}
 
 				DataRow dummyRow = result.NewRow();
 				foreach (DataRow columnInfo in schemaTable.Rows)
 				{
-					dummyRow[columnInfo["ColumnName"] as string] =
+					string colName = columnInfo["ColumnName"] as string;
+					dummyRow[colName] =
 						Generator.GenerateDummyData(
-							columnInfo["ColumnName"] as string,
+							colName,
 							(Type)columnInfo["DataType"],
 							(int)columnInfo["ColumnSize"],
 							(short)columnInfo["NumericPrecision"],
@@ -469,7 +482,10 @@ namespace DataGenerator
 
 				foreach (Condition cond in table.Conditions)
 				{
+					// Equals (=)
 					dummyRow[cond.Column] = cond.Value;
+
+					// TODO: Operator
 				}
 
 				result.Rows.Add(dummyRow);
