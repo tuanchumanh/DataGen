@@ -31,41 +31,58 @@ namespace DataGenerator
 			this.commandLineArgs = args;
 		}
 
+		/// <summary>
+		/// Bat dau xu ly
+		/// </summary>
+		/// <param name="sender"></param>
+		/// <param name="e"></param>
 		private void StartButton_Click(object sender, EventArgs e)
 		{
 			if (!DataExists(setting.Tables[0]))
 			{
+				// Neu bang dau tien khong co data, tao dummy cho tat ca cac bang
 				foreach (Table table in setting.Tables)
 				{
 					DataTable dummyData = CreateDummyDataFromScratch(table);
 					tempData[table.Alias] = dummyData;
 				}
 
+				// Set gia tri cac dieu kien join cho khop voi setting
 				foreach (Join join in setting.Tables.SelectMany(tbl => tbl.Joins))
 				{
+					// Khi operator la "Equals"「＝」
 					tempData[join.Table2.Alias].Rows[0][join.Column2] = tempData[join.Table1.Alias].Rows[0][join.Column1];
+					
+					// TODO: Operator
 				}
 			}
 			else
 			{
 				tempData.Add(setting.Tables[0].Alias, GetData(setting.Tables[0]));
+
+				// Join thu, lay ra cac bang khong join duoc theo dieu kien da chi dinh
 				List<Join> failedJoins = CheckJoinsForTable(setting.Tables[0]);
 				if (failedJoins.Count > 0)
 				{
+					// Tao data cho cac bang khong join duoc
 					DataSet dummyDataSet = CreateDummyData(failedJoins);
 					foreach (DataTable table in dummyDataSet.Tables)
 					{
 						tempData[table.TableName] = table;
 					}
 
+					// Set gia tri cac dieu kien join cho khop voi setting
 					foreach (Join join in setting.Tables.SelectMany(tbl => tbl.Joins))
 					{
+						// Khi operator la "Equals"「＝」
 						tempData[join.Table2.Alias].Rows[0][join.Column2] = tempData[join.Table1.Alias].Rows[0][join.Column1];
+
+						// TODO: Operator
 					}
 				}
 				else
 				{
-					// Data exists
+					// Neu da ton tai data, khong lam gi
 					foreach (Table table in setting.Tables)
 					{
 						DataTable existingData = GetData(table);
@@ -78,6 +95,11 @@ namespace DataGenerator
 			tableNamesComboBox.SelectedValue = setting.Tables[0].Alias;
 		}
 
+		/// <summary>
+		/// Check cac dieu kien join cua bang xem da ton tai data chua
+		/// </summary>
+		/// <param name="table"></param>
+		/// <returns></returns>
 		private List<Join> CheckJoinsForTable(Table table)
 		{
 			List<Join> failedJoins = new List<Join>();
@@ -91,11 +113,14 @@ namespace DataGenerator
 				queryBuilder.AppendFormat(" SELECT TOP 1 1 AS {0},", table.Alias);
 				queryBuilder.AppendLine();
 
+				// Loop qua tung doi tuong join cua bang
 				foreach (Table joinTargetTable in
 					table.Joins.GroupBy(j => j.Table2).Select(g => g.First().Table2))
 				{
 					int joinNo = 1;
 					int paramIndex = 0;
+
+					// Doi voi moi join them 1 query check
 					foreach (Join join in table.Joins.Where(j => j.Table2 == joinTargetTable).OrderBy(j => j.Column2))
 					{
 						queryBuilder.AppendFormat(@"
@@ -113,6 +138,8 @@ namespace DataGenerator
 								join.Column2)
 							.AppendLine();
 
+						// Them tat ca dieu kien where vao query check
+						// Them dieu kien where cua bang hien tai
 						foreach (Condition cond1 in table.Conditions)
 						{
 							queryBuilder
@@ -127,6 +154,7 @@ namespace DataGenerator
 							paramIndex++;
 						}
 
+						// Them dieu kien where cua bang doi tuong
 						foreach (Condition cond2 in joinTargetTable.Conditions)
 						{
 							queryBuilder
@@ -170,6 +198,8 @@ namespace DataGenerator
 				int colIdx = 1;
 				foreach (Join join in table.Joins.OrderBy(j => j.Table2).ThenBy(j => j.Column2))
 				{
+					// Khi ton tai se tra ve 1, khong ton tai se tra ve 0
+					// Add nhung gia tri khong phai 1 vao danh sach join that bai
 					if ((int)result.Rows[0][colIdx++] != 1)
 					{
 						failedJoins.Add(join);
@@ -180,6 +210,11 @@ namespace DataGenerator
 			return failedJoins;
 		}
 
+		/// <summary>
+		/// Lay ra du lieu cua bang
+		/// </summary>
+		/// <param name="table"></param>
+		/// <returns></returns>
 		private static DataTable GetData(Table table)
 		{
 			using (SqlConnection sqlConnection1 = new SqlConnection(connectionString))
@@ -194,12 +229,13 @@ namespace DataGenerator
 				int idx = 0;
 				foreach (var cond in table.Conditions)
 				{
-					queryBuilder.AppendFormat(
+					queryBuilder
+						.AppendFormat(
 							" {0} {1} @param{2} AND",
 							cond.Column,
 							Mapping.GetOperatorForQuery(cond.Operator),
 							idx)
-							.AppendLine();
+						.AppendLine();
 					cmd.Parameters.AddWithValue("@param" + idx, cond.Value);
 					idx++;
 				}
@@ -217,6 +253,11 @@ namespace DataGenerator
 			}
 		}
 
+		/// <summary>
+		/// Check xem data cua bang da ton tai chua
+		/// </summary>
+		/// <param name="table"></param>
+		/// <returns></returns>
 		private static bool DataExists(Table table)
 		{
 			using (SqlConnection conn = new SqlConnection(connectionString))
@@ -228,6 +269,7 @@ namespace DataGenerator
 				StringBuilder queryBuilder = new StringBuilder();
 				queryBuilder.AppendFormat("SELECT COUNT(*) FROM {0} WHERE 1=1 AND", table.Name).AppendLine();
 
+				// Check dieu kien where
 				int idx = 0;
 				foreach (var cond in table.Conditions)
 				{
@@ -257,6 +299,11 @@ namespace DataGenerator
 			return false;
 		}
 
+		/// <summary>
+		/// Tao data dummy
+		/// </summary>
+		/// <param name="failedJoins"></param>
+		/// <returns></returns>
 		private static DataSet CreateDummyData(IEnumerable<Join> failedJoins)
 		{
 			DataSet result = null;
@@ -286,10 +333,11 @@ namespace DataGenerator
 					joinCondBuilder.AppendFormat(" INNER JOIN {0} {1} ON", table2.Name, table2.Alias);
 					joinCondBuilder.AppendLine();
 
+					// Trong tat ca cac dieu kien join, check xem co dieu kien join thanh cong hay khong
 					List<Join> successfulJoins = table1.Joins.Where(j => j.Table2 == table2 && !failedJoins.Contains(j)).OrderBy(j => j.Column2).ToList();
 					if (successfulJoins.Count == 0)
 					{
-						// No sample data, create from scratch
+						// Neu doi voi tat ca cac dieu kien join deu khong co data, tao data random
 						DataTable targetTable = new DataTable();
 						targetTable = CreateDummyDataFromScratch(table2);
 						targetTable.TableName = table2.Alias;
@@ -297,7 +345,7 @@ namespace DataGenerator
 						continue;
 					}
 
-					// Has sample data
+					// Neu co ton tai data, base tren dieu kien join thanh cong de tao data
 					foreach (Join join in successfulJoins)
 					{
 						joinCondBuilder.AppendFormat(
@@ -380,6 +428,11 @@ namespace DataGenerator
 			return result;
 		}
 
+		/// <summary>
+		/// Tao data random cho bang
+		/// </summary>
+		/// <param name="table"></param>
+		/// <returns></returns>
 		private static DataTable CreateDummyDataFromScratch(Table table)
 		{
 			using (SqlConnection conn = new SqlConnection(connectionString))
