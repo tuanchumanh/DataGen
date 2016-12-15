@@ -16,10 +16,22 @@ namespace DataGenerator
 
 		public Mapping()
 		{
-			this.Initialize();
+			this.ReadSettingFile();
 		}
 
-		protected void Initialize()
+		public Mapping(string query)
+		{
+			if (string.IsNullOrEmpty(query))
+			{
+				this.ReadSettingFile();
+				return;
+			}
+
+			SqlParser parser = new SqlParser(query);
+			this.Tables = parser.TableSettings.ToList();
+		}
+
+		protected void ReadSettingFile()
 		{
 			FileStream stream = File.Open(ConfigurationManager.AppSettings["SettingFilePath"], FileMode.Open, FileAccess.Read);
 			IExcelDataReader excelReader = ExcelReaderFactory.CreateOpenXmlReader(stream);
