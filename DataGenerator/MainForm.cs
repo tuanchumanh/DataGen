@@ -29,6 +29,7 @@ namespace DataGenerator
 		{
 			Exception ex = (Exception)args.ExceptionObject;
 			MessageBox.Show(ex.ToString(), ex.Message, MessageBoxButtons.OK, MessageBoxIcon.Error);
+			lblStatus.Text = "Error occurred.";
 		}
 
 		public MainForm(string[] args)
@@ -654,11 +655,29 @@ namespace DataGenerator
 		private void btnReload_Click(object sender, EventArgs e)
 		{
 			this.Initialize();
+			lblStatus.Text = string.Empty;
 		}
 
 		private void btnParse_Click(object sender, EventArgs e)
 		{
+			if (string.IsNullOrEmpty(txtQuery.Text))
+			{
+				lblStatus.Text = "Query is empty.";
+				return;
+			}
+
 			this.Initialize(txtQuery.Text);
+			lblStatus.Text = string.Empty;
+			if (tempData.Count > 0)
+			{
+				btnExcel.Enabled = true;
+				btnInsert.Enabled = true;
+			}
+		}
+
+		private void exitToolStripMenuItem_Click(object sender, EventArgs e)
+		{
+			Application.Exit();
 		}
 	}
 }
