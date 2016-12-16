@@ -54,6 +54,8 @@ namespace DataGenerator
 
 			foreach (Table table in this.setting.Tables)
 			{
+				tableNamesComboBox.ValueMember = "Value";
+				tableNamesComboBox.DisplayMember = "Text";
 				tableNamesComboBox.DataSource = this.setting.Tables.Select(t => new { Text = string.Format("{0} ({1})", t.Name, t.Alias), Value = t.Alias }).ToList();
 			}
 
@@ -485,7 +487,7 @@ namespace DataGenerator
 
 					// Thay doi PK cho khac nhau
 					foreach (DataColumn key in result.PrimaryKey.Where(key =>
-							!table.Conditions.Select(c => c.Column).Contains(key.ColumnName)))
+							!table.Conditions.Select(c => c.Column.ToLower()).Contains(key.ColumnName.ToLower())))
 					{
 						newRow[key] =
 							Generator.GenerateDummyData(
@@ -626,6 +628,11 @@ namespace DataGenerator
 
 		private void tableNamesComboBox_SelectedIndexChanged(object sender, EventArgs e)
 		{
+			if (this.tempData == null || this.tempData.Count == 0)
+			{
+				return;
+			}
+
 			DataTable dataTable;
 			if (this.tempData.TryGetValue(tableNamesComboBox.SelectedValue.ToString(), out dataTable))
 			{
@@ -639,6 +646,11 @@ namespace DataGenerator
 
 		private void btnPrevTable_Click(object sender, EventArgs e)
 		{
+			if (this.tempData == null || this.tempData.Count == 0)
+			{
+				return;
+			}
+
 			int index = tableNamesComboBox.SelectedIndex;
 			int prevIndex = index - 1;
 			if (prevIndex == -1)
@@ -652,6 +664,11 @@ namespace DataGenerator
 
 		private void btnNextTable_Click(object sender, EventArgs e)
 		{
+			if (this.tempData == null || this.tempData.Count == 0)
+			{
+				return;
+			}
+
 			int index = tableNamesComboBox.SelectedIndex;
 			int nextIndex = index + 1;
 			if (nextIndex == tableNamesComboBox.Items.Count)
@@ -696,6 +713,15 @@ namespace DataGenerator
 		{
 			PoorMansTSqlFormatterLib.SqlFormattingManager formatManager = new PoorMansTSqlFormatterLib.SqlFormattingManager();
 			txtQuery.Text = formatManager.Format(txtQuery.Text);
+		}
+
+		private void btnClear_Click(object sender, EventArgs e)
+		{
+			this.tempData = new Dictionary<string, DataTable>();
+			this.tableNamesComboBox.DataSource = null;
+			this.tableNamesComboBox.ResetText();
+			this.tableNamesComboBox.SelectedIndex = -1;
+			this.previewGrid.DataSource = null;
 		}
 	}
 }

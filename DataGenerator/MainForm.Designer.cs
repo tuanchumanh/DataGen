@@ -28,6 +28,7 @@
 		/// </summary>
 		private void InitializeComponent()
 		{
+			System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(MainForm));
 			this.previewGrid = new System.Windows.Forms.DataGridView();
 			this.tableNamesComboBox = new System.Windows.Forms.ComboBox();
 			this.btnExcel = new System.Windows.Forms.Button();
@@ -43,6 +44,7 @@
 			this.txtQuery = new System.Windows.Forms.RichTextBox();
 			this.utilitiesToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
 			this.formatQueryToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+			this.btnClear = new System.Windows.Forms.Button();
 			((System.ComponentModel.ISupportInitialize)(this.previewGrid)).BeginInit();
 			this.menuStrip1.SuspendLayout();
 			this.SuspendLayout();
@@ -66,7 +68,7 @@
 			this.tableNamesComboBox.FormattingEnabled = true;
 			this.tableNamesComboBox.Location = new System.Drawing.Point(11, 32);
 			this.tableNamesComboBox.Name = "tableNamesComboBox";
-			this.tableNamesComboBox.Size = new System.Drawing.Size(133, 20);
+			this.tableNamesComboBox.Size = new System.Drawing.Size(214, 20);
 			this.tableNamesComboBox.TabIndex = 2;
 			this.tableNamesComboBox.ValueMember = "Value";
 			this.tableNamesComboBox.SelectedIndexChanged += new System.EventHandler(this.tableNamesComboBox_SelectedIndexChanged);
@@ -96,7 +98,7 @@
 			// 
 			// btnPrevTable
 			// 
-			this.btnPrevTable.Location = new System.Drawing.Point(150, 30);
+			this.btnPrevTable.Location = new System.Drawing.Point(231, 30);
 			this.btnPrevTable.Name = "btnPrevTable";
 			this.btnPrevTable.Size = new System.Drawing.Size(21, 23);
 			this.btnPrevTable.TabIndex = 3;
@@ -106,7 +108,7 @@
 			// 
 			// btnNextTable
 			// 
-			this.btnNextTable.Location = new System.Drawing.Point(177, 30);
+			this.btnNextTable.Location = new System.Drawing.Point(258, 30);
 			this.btnNextTable.Name = "btnNextTable";
 			this.btnNextTable.Size = new System.Drawing.Size(21, 23);
 			this.btnNextTable.TabIndex = 3;
@@ -123,6 +125,7 @@
 			this.btnReload.TabIndex = 4;
 			this.btnReload.Text = "Import Excel";
 			this.btnReload.UseVisualStyleBackColor = true;
+			this.btnReload.Visible = false;
 			this.btnReload.Click += new System.EventHandler(this.btnReload_Click);
 			// 
 			// btnParse
@@ -168,7 +171,7 @@
 			// exitToolStripMenuItem
 			// 
 			this.exitToolStripMenuItem.Name = "exitToolStripMenuItem";
-			this.exitToolStripMenuItem.Size = new System.Drawing.Size(90, 22);
+			this.exitToolStripMenuItem.Size = new System.Drawing.Size(152, 22);
 			this.exitToolStripMenuItem.Text = "Exit";
 			this.exitToolStripMenuItem.Click += new System.EventHandler(this.exitToolStripMenuItem_Click);
 			// 
@@ -200,11 +203,23 @@
 			this.formatQueryToolStripMenuItem.Text = "Format query";
 			this.formatQueryToolStripMenuItem.Click += new System.EventHandler(this.formatQueryToolStripMenuItem_Click);
 			// 
+			// btnClear
+			// 
+			this.btnClear.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
+			this.btnClear.Location = new System.Drawing.Point(847, 28);
+			this.btnClear.Name = "btnClear";
+			this.btnClear.Size = new System.Drawing.Size(75, 23);
+			this.btnClear.TabIndex = 10;
+			this.btnClear.Text = "Clear";
+			this.btnClear.UseVisualStyleBackColor = true;
+			this.btnClear.Click += new System.EventHandler(this.btnClear_Click);
+			// 
 			// MainForm
 			// 
 			this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 12F);
 			this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
 			this.ClientSize = new System.Drawing.Size(936, 552);
+			this.Controls.Add(this.btnClear);
 			this.Controls.Add(this.txtQuery);
 			this.Controls.Add(this.lblStatus);
 			this.Controls.Add(this.btnParse);
@@ -216,9 +231,10 @@
 			this.Controls.Add(this.btnInsert);
 			this.Controls.Add(this.btnExcel);
 			this.Controls.Add(this.menuStrip1);
+			this.Icon = ((System.Drawing.Icon)(resources.GetObject("$this.Icon")));
 			this.MainMenuStrip = this.menuStrip1;
 			this.Name = "MainForm";
-			this.Text = "Test Data Utility";
+			this.Text = "Test Data Generator";
 			((System.ComponentModel.ISupportInitialize)(this.previewGrid)).EndInit();
 			this.menuStrip1.ResumeLayout(false);
 			this.menuStrip1.PerformLayout();
@@ -244,6 +260,7 @@
 		private System.Windows.Forms.RichTextBox txtQuery;
 		private System.Windows.Forms.ToolStripMenuItem utilitiesToolStripMenuItem;
 		private System.Windows.Forms.ToolStripMenuItem formatQueryToolStripMenuItem;
+		private System.Windows.Forms.Button btnClear;
 
 	}
 }

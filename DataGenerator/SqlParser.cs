@@ -2,10 +2,11 @@
 using Microsoft.SqlServer.TransactSql.ScriptDom;
 using System;
 using System.Collections.Generic;
+using System.Configuration;
+using System.Data;
+using System.Data.SqlClient;
 using System.IO;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace DataGenerator
 {
@@ -53,9 +54,22 @@ namespace DataGenerator
 				SqlParser.GetTableListFromQuerySpec(querySpec, tableList);
 
 				// Lay ra dieu kien WHERE
-				if (querySpec.WhereClause.SearchCondition is BooleanBinaryExpression)
+				if (querySpec.WhereClause != null)
 				{
-					GetJoinConditions((BooleanBinaryExpression)querySpec.WhereClause.SearchCondition, tableList);
+					if (querySpec.WhereClause.SearchCondition is BooleanBinaryExpression)
+					{
+						GetJoinConditions((BooleanBinaryExpression)querySpec.WhereClause.SearchCondition, tableList);
+					}
+
+					if (querySpec.WhereClause.SearchCondition is BooleanComparisonExpression)
+					{
+						SqlParser.AddComparisonExpression((BooleanComparisonExpression)querySpec.WhereClause.SearchCondition, tableList);
+					}
+
+					if (querySpec.WhereClause.SearchCondition is InPredicate)
+					{
+						SqlParser.AddInPredicateCondition((InPredicate)querySpec.WhereClause.SearchCondition, tableList);
+					}
 				}
 
 				this.settings = tableList;
@@ -78,9 +92,10 @@ namespace DataGenerator
 				// Truong hop khong co join
 				NamedTableReference namedTableRef = (NamedTableReference)tableRef;
 
+				string alias = namedTableRef.Alias == null ? namedTableRef.SchemaObject.BaseIdentifier.Value : namedTableRef.Alias.Value;
 				tableList.Add(new Table()
 				{
-					Alias = namedTableRef.Alias.Value,
+					Alias = alias,
 					Name = namedTableRef.SchemaObject.BaseIdentifier.Value,
 					Conditions = new List<Condition>(),
 					Joins = new List<Join>(),
@@ -130,21 +145,7 @@ namespace DataGenerator
 				{
 					// TODO: IN Subquery
 					InPredicate inPredicate = (InPredicate)expression.SecondExpression;
-					ColumnReferenceExpression colRef = (ColumnReferenceExpression)inPredicate.Expression;
-					if (colRef.MultiPartIdentifier.Identifiers.Count == 2)
-					{
-						InValues<string> value = new InValues<string>(inPredicate.Values.Select(v => ((Literal)v).Value));
-
-						Condition condition = new Condition()
-						{
-							Table = tableList.First(tbl => tbl.Alias == colRef.MultiPartIdentifier.Identifiers[0].Value),
-							Column = colRef.MultiPartIdentifier.Identifiers[1].Value,
-							Value = value,
-							Operator = Operators.In,
-						};
-
-						tableList.First(tbl => tbl.Alias == colRef.MultiPartIdentifier.Identifiers[0].Value).Conditions.Add(condition);
-					}
+					SqlParser.AddInPredicateCondition(inPredicate, tableList);
 				}
 			}
 
@@ -152,6 +153,31 @@ namespace DataGenerator
 			{
 				SqlParser.AddComparisonExpression((BooleanComparisonExpression)expression.FirstExpression, tableList);
 			}
+
+			if (expression.SecondExpression is BooleanComparisonExpression)
+			{
+				SqlParser.AddComparisonExpression((BooleanComparisonExpression)expression.SecondExpression, tableList);
+			}
+		}
+
+		private static void AddInPredicateCondition(InPredicate inPredicate, List<Table> tableList)
+		{
+			ColumnReferenceExpression colRef = (ColumnReferenceExpression)inPredicate.Expression;
+
+			// Lay ra table cua dieu kien
+			string colName = colRef.MultiPartIdentifier.Identifiers[colRef.MultiPartIdentifier.Identifiers.Count - 1].Value; ;
+			Table targetTable = SqlParser.GetTableHavingColumn(colName, colRef, tableList);
+
+			InValues<string> value = new InValues<string>(inPredicate.Values.Select(v => ((Literal)v).Value));
+			Condition condition = new Condition()
+			{
+				Table = targetTable,
+				Column = colName,
+				Value = value,
+				Operator = Operators.In,
+			};
+
+			targetTable.Conditions.Add(condition);
 		}
 
 		private static void AddComparisonExpression(BooleanComparisonExpression compareExpression, List<Table> tableList)
@@ -179,26 +205,76 @@ namespace DataGenerator
 				ColumnReferenceExpression joinLeft = (ColumnReferenceExpression)compareExpression.FirstExpression;
 				Literal stringValue = (Literal)compareExpression.SecondExpression;
 
-				if (joinLeft.MultiPartIdentifier.Count == 2)
+				// Lay ra table cua dieu kien
+				string colName = joinLeft.MultiPartIdentifier.Identifiers[joinLeft.MultiPartIdentifier.Identifiers.Count - 1].Value; ;
+				Table targetTable = SqlParser.GetTableHavingColumn(colName, joinLeft, tableList);
+
+				if (targetTable != null)
 				{
-					// Truong hop co ghi alias: B.CaseID = N'poPO'
 					Condition condition = new Condition()
 					{
-						Table = tableList.First(tbl => tbl.Alias == joinLeft.MultiPartIdentifier.Identifiers[0].Value),
-						Column = joinLeft.MultiPartIdentifier.Identifiers[1].Value,
+						Table = targetTable,
+						Column = colName,
 						Value = stringValue.Value,
 						Operator = GetOperator(compareExpression.ComparisonType),
 					};
 
-					tableList.First(tbl => tbl.Alias == joinLeft.MultiPartIdentifier.Identifiers[0].Value).Conditions.Add(condition);
-
-				}
-				else if (joinLeft.MultiPartIdentifier.Count == 1)
-				{
-					// Truong hop khong ghi alias: CaseUse = N'Y'
-					// TODO: LAM THE NAO?
+					targetTable.Conditions.Add(condition);
 				}
 			}
+		}
+
+		/// <summary>
+		/// Tim xem column thuoc table nao va return table
+		/// </summary>
+		/// <param name="colName"></param>
+		/// <param name="joinLeft"></param>
+		/// <param name="tableList"></param>
+		/// <returns></returns>
+		private static Table GetTableHavingColumn(string colName, ColumnReferenceExpression joinLeft, List<Table> tableList)
+		{
+			Table targetTable = null;
+			if (joinLeft.MultiPartIdentifier.Count == 2)
+			{
+				targetTable = tableList.First(tbl => tbl.Alias == joinLeft.MultiPartIdentifier.Identifiers[0].Value);
+			}
+			else if (joinLeft.MultiPartIdentifier.Count == 1)
+			{
+				if (tableList.Count == 1)
+				{
+					targetTable = tableList[0];
+				}
+				else if (tableList.Count > 1)
+				{
+					foreach (Table table in tableList)
+					{
+						using (SqlConnection conn = new SqlConnection(ConfigurationManager.ConnectionStrings["NULDEMOConnectionString"].ToString()))
+						using (SqlCommand cmd = new SqlCommand())
+						{
+							// Get schema
+							cmd.CommandText = string.Format("SELECT * FROM {0}", table.Name);
+							cmd.CommandType = CommandType.Text;
+							cmd.Connection = conn;
+
+							conn.Open();
+							DataTable schemaTable;
+							using (SqlDataReader reader = cmd.ExecuteReader(CommandBehavior.KeyInfo))
+							{
+								schemaTable = reader.GetSchemaTable();
+							}
+
+							DataRow colSpec = schemaTable.Rows.Cast<DataRow>().Where(col =>
+								colName.Equals(col["ColumnName"] as string, StringComparison.OrdinalIgnoreCase)).FirstOrDefault();
+							if (colSpec != null)
+							{
+								targetTable = table;
+								break;
+							}
+						}
+					}
+				}
+			}
+			return targetTable;
 		}
 
 		private static Operators GetOperator(BooleanComparisonType comparisonType)
@@ -238,9 +314,10 @@ namespace DataGenerator
 			if (join.FirstTableReference is NamedTableReference)
 			{
 				NamedTableReference namedTableRef = (NamedTableReference)join.FirstTableReference;
+				string alias = namedTableRef.Alias == null ? namedTableRef.SchemaObject.BaseIdentifier.Value : namedTableRef.Alias.Value;
 				tableList.Add(new Table()
 				{
-					Alias = namedTableRef.Alias.Value,
+					Alias = alias,
 					Name = namedTableRef.SchemaObject.BaseIdentifier.Value,
 					Joins = new List<Join>(),
 					Conditions = new List<Condition>(),
@@ -250,9 +327,10 @@ namespace DataGenerator
 			if (join.SecondTableReference is NamedTableReference)
 			{
 				NamedTableReference namedTableRef2 = (NamedTableReference)join.SecondTableReference;
+				string alias = namedTableRef2.Alias == null ? namedTableRef2.SchemaObject.BaseIdentifier.Value : namedTableRef2.Alias.Value;
 				tableList.Add(new Table()
 				{
-					Alias = namedTableRef2.Alias.Value,
+					Alias = alias,
 					Name = namedTableRef2.SchemaObject.BaseIdentifier.Value,
 					Joins = new List<Join>(),
 					Conditions = new List<Condition>(),
