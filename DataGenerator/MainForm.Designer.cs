@@ -35,12 +35,14 @@
 			this.btnPrevTable = new System.Windows.Forms.Button();
 			this.btnNextTable = new System.Windows.Forms.Button();
 			this.btnReload = new System.Windows.Forms.Button();
-			this.txtQuery = new System.Windows.Forms.TextBox();
 			this.btnParse = new System.Windows.Forms.Button();
 			this.lblStatus = new System.Windows.Forms.Label();
 			this.menuStrip1 = new System.Windows.Forms.MenuStrip();
 			this.fileToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
 			this.exitToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+			this.txtQuery = new System.Windows.Forms.RichTextBox();
+			this.utilitiesToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+			this.formatQueryToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
 			((System.ComponentModel.ISupportInitialize)(this.previewGrid)).BeginInit();
 			this.menuStrip1.SuspendLayout();
 			this.SuspendLayout();
@@ -123,19 +125,6 @@
 			this.btnReload.UseVisualStyleBackColor = true;
 			this.btnReload.Click += new System.EventHandler(this.btnReload_Click);
 			// 
-			// txtQuery
-			// 
-			this.txtQuery.AcceptsReturn = true;
-			this.txtQuery.AcceptsTab = true;
-			this.txtQuery.AllowDrop = true;
-			this.txtQuery.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Left) 
-            | System.Windows.Forms.AnchorStyles.Right)));
-			this.txtQuery.Location = new System.Drawing.Point(11, 206);
-			this.txtQuery.Multiline = true;
-			this.txtQuery.Name = "txtQuery";
-			this.txtQuery.Size = new System.Drawing.Size(912, 294);
-			this.txtQuery.TabIndex = 5;
-			// 
 			// btnParse
 			// 
 			this.btnParse.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Right)));
@@ -159,9 +148,11 @@
 			// menuStrip1
 			// 
 			this.menuStrip1.Items.AddRange(new System.Windows.Forms.ToolStripItem[] {
-            this.fileToolStripMenuItem});
+            this.fileToolStripMenuItem,
+            this.utilitiesToolStripMenuItem});
 			this.menuStrip1.Location = new System.Drawing.Point(0, 0);
 			this.menuStrip1.Name = "menuStrip1";
+			this.menuStrip1.RenderMode = System.Windows.Forms.ToolStripRenderMode.System;
 			this.menuStrip1.Size = new System.Drawing.Size(936, 24);
 			this.menuStrip1.TabIndex = 8;
 			this.menuStrip1.Text = "menuStrip1";
@@ -171,24 +162,52 @@
 			this.fileToolStripMenuItem.DropDownItems.AddRange(new System.Windows.Forms.ToolStripItem[] {
             this.exitToolStripMenuItem});
 			this.fileToolStripMenuItem.Name = "fileToolStripMenuItem";
-			this.fileToolStripMenuItem.Size = new System.Drawing.Size(36, 20);
-			this.fileToolStripMenuItem.Text = "File";
+			this.fileToolStripMenuItem.Size = new System.Drawing.Size(41, 20);
+			this.fileToolStripMenuItem.Text = "Main";
 			// 
 			// exitToolStripMenuItem
 			// 
 			this.exitToolStripMenuItem.Name = "exitToolStripMenuItem";
-			this.exitToolStripMenuItem.Size = new System.Drawing.Size(152, 22);
+			this.exitToolStripMenuItem.Size = new System.Drawing.Size(90, 22);
 			this.exitToolStripMenuItem.Text = "Exit";
 			this.exitToolStripMenuItem.Click += new System.EventHandler(this.exitToolStripMenuItem_Click);
+			// 
+			// txtQuery
+			// 
+			this.txtQuery.AcceptsTab = true;
+			this.txtQuery.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Left) 
+            | System.Windows.Forms.AnchorStyles.Right)));
+			this.txtQuery.Font = new System.Drawing.Font("Consolas", 9F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
+			this.txtQuery.Location = new System.Drawing.Point(11, 196);
+			this.txtQuery.Name = "txtQuery";
+			this.txtQuery.Size = new System.Drawing.Size(912, 315);
+			this.txtQuery.TabIndex = 9;
+			this.txtQuery.Text = "";
+			this.txtQuery.WordWrap = false;
+			// 
+			// utilitiesToolStripMenuItem
+			// 
+			this.utilitiesToolStripMenuItem.DropDownItems.AddRange(new System.Windows.Forms.ToolStripItem[] {
+            this.formatQueryToolStripMenuItem});
+			this.utilitiesToolStripMenuItem.Name = "utilitiesToolStripMenuItem";
+			this.utilitiesToolStripMenuItem.Size = new System.Drawing.Size(57, 20);
+			this.utilitiesToolStripMenuItem.Text = "Utilities";
+			// 
+			// formatQueryToolStripMenuItem
+			// 
+			this.formatQueryToolStripMenuItem.Name = "formatQueryToolStripMenuItem";
+			this.formatQueryToolStripMenuItem.Size = new System.Drawing.Size(152, 22);
+			this.formatQueryToolStripMenuItem.Text = "Format query";
+			this.formatQueryToolStripMenuItem.Click += new System.EventHandler(this.formatQueryToolStripMenuItem_Click);
 			// 
 			// MainForm
 			// 
 			this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 12F);
 			this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
 			this.ClientSize = new System.Drawing.Size(936, 552);
+			this.Controls.Add(this.txtQuery);
 			this.Controls.Add(this.lblStatus);
 			this.Controls.Add(this.btnParse);
-			this.Controls.Add(this.txtQuery);
 			this.Controls.Add(this.btnReload);
 			this.Controls.Add(this.btnNextTable);
 			this.Controls.Add(this.btnPrevTable);
@@ -217,12 +236,14 @@
 		private System.Windows.Forms.Button btnPrevTable;
 		private System.Windows.Forms.Button btnNextTable;
 		private System.Windows.Forms.Button btnReload;
-		private System.Windows.Forms.TextBox txtQuery;
 		private System.Windows.Forms.Button btnParse;
 		private System.Windows.Forms.Label lblStatus;
 		private System.Windows.Forms.MenuStrip menuStrip1;
 		private System.Windows.Forms.ToolStripMenuItem fileToolStripMenuItem;
 		private System.Windows.Forms.ToolStripMenuItem exitToolStripMenuItem;
+		private System.Windows.Forms.RichTextBox txtQuery;
+		private System.Windows.Forms.ToolStripMenuItem utilitiesToolStripMenuItem;
+		private System.Windows.Forms.ToolStripMenuItem formatQueryToolStripMenuItem;
 
 	}
 }

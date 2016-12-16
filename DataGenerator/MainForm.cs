@@ -29,7 +29,7 @@ namespace DataGenerator
 		{
 			Exception ex = (Exception)args.ExceptionObject;
 			MessageBox.Show(ex.ToString(), ex.Message, MessageBoxButtons.OK, MessageBoxIcon.Error);
-			lblStatus.Text = "Error occurred.";
+			lblStatus.Text = "Unexpected error occurred.";
 		}
 
 		public MainForm(string[] args)
@@ -45,6 +45,13 @@ namespace DataGenerator
 		{
 			this.tempData.Clear();
 			this.setting = new Mapping(query);
+
+			if (this.setting.Parser.Errors.Count > 0)
+			{
+				this.lblStatus.Text = "Parse error.";
+				return;
+			}
+
 			foreach (Table table in this.setting.Tables)
 			{
 				tableNamesComboBox.DataSource = this.setting.Tables.Select(t => new { Text = string.Format("{0} ({1})", t.Name, t.Alias), Value = t.Alias }).ToList();
@@ -97,7 +104,7 @@ namespace DataGenerator
 				}
 				else
 				{
-					// Neu da ton tai data, khong lam gi
+					// Neu da ton tai data khi join, set lai dieu kien where
 					foreach (Table table in this.setting.Tables)
 					{
 						DataTable existingData = GetData(table);
@@ -226,6 +233,7 @@ namespace DataGenerator
 					result.Load(reader);
 				}
 
+				// Them data cho dieu kien IN
 				CreateDataForInClause(table, result);
 				return result;
 			}
@@ -452,39 +460,43 @@ namespace DataGenerator
 		{
 			foreach (Condition cond in table.Conditions)
 			{
-				if (cond.Value is InValues)
+				if (!(cond.Value is InValues))
 				{
-					// TODO: IN Subquery
-					List<object> values = ((IEnumerable)cond.Value).Cast<object>().ToList();
-					if (values.Count > 0)
+					continue;
+				}
+
+				// TODO: IN Subquery
+				List<object> values = ((IEnumerable)cond.Value).Cast<object>().ToList();
+				if (values.Count == 0)
+				{
+					continue;
+				}
+
+				result.Rows[0][cond.Column] = values[0];
+				// TODO: IN Variations
+				foreach (var value in values.Skip(1))
+				{
+					// Them row ung voi moi gia tri cua IN clause
+					DataRow newRow = result.NewRow();
+					DataRow sourceRow = result.Rows[0];
+					newRow.ItemArray = sourceRow.ItemArray.Clone() as object[];
+
+					newRow[cond.Column] = value;
+
+					// Thay doi PK cho khac nhau
+					foreach (DataColumn key in result.PrimaryKey.Where(key =>
+							!table.Conditions.Select(c => c.Column).Contains(key.ColumnName)))
 					{
-						result.Rows[0][cond.Column] = values[0];
-						// TODO: IN Variations
-						foreach (var value in values.Skip(1))
-						{
-							// Them row ung voi moi gia tri cua IN clause
-							DataRow newRow = result.NewRow();
-							DataRow sourceRow = result.Rows[0];
-							newRow.ItemArray = sourceRow.ItemArray.Clone() as object[];
-
-							newRow[cond.Column] = value;
-
-							// Thay doi PK cho khac nhau
-							foreach (DataColumn key in result.PrimaryKey.Where(key =>
-									!table.Conditions.Select(c => c.Column).Contains(key.ColumnName)))
-							{
-								newRow[key] =
-									Generator.GenerateDummyData(
-										key.ColumnName,
-										key.DataType,
-										key.MaxLength,
-										1,
-										0);
-							}
-
-							result.Rows.Add(newRow);
-						}
+						newRow[key] =
+							Generator.GenerateDummyData(
+								key.ColumnName,
+								key.DataType,
+								key.MaxLength,
+								1,
+								0);
 					}
+
+					result.Rows.Add(newRow);
 				}
 			}
 		}
@@ -582,7 +594,7 @@ namespace DataGenerator
 							tableName,
 							condition.Column,
 							Mapping.GetOperatorForQuery(condition.Operator),
-							string.Join(",", values.Cast<object>().Select(x => "@param" + inParamIndex++ )))
+							string.Join(",", values.Cast<object>().Select(x => "@param" + inParamIndex++)))
 						.AppendLine();
 
 					inParamIndex = 0;
@@ -623,7 +635,6 @@ namespace DataGenerator
 
 		private void btnExcel_Click(object sender, EventArgs e)
 		{
-
 		}
 
 		private void btnPrevTable_Click(object sender, EventArgs e)
@@ -660,6 +671,7 @@ namespace DataGenerator
 
 		private void btnParse_Click(object sender, EventArgs e)
 		{
+			lblStatus.Text = string.Empty;
 			if (string.IsNullOrEmpty(txtQuery.Text))
 			{
 				lblStatus.Text = "Query is empty.";
@@ -667,7 +679,7 @@ namespace DataGenerator
 			}
 
 			this.Initialize(txtQuery.Text);
-			lblStatus.Text = string.Empty;
+
 			if (tempData.Count > 0)
 			{
 				btnExcel.Enabled = true;
@@ -678,6 +690,12 @@ namespace DataGenerator
 		private void exitToolStripMenuItem_Click(object sender, EventArgs e)
 		{
 			Application.Exit();
+		}
+
+		private void formatQueryToolStripMenuItem_Click(object sender, EventArgs e)
+		{
+			PoorMansTSqlFormatterLib.SqlFormattingManager formatManager = new PoorMansTSqlFormatterLib.SqlFormattingManager();
+			txtQuery.Text = formatManager.Format(txtQuery.Text);
 		}
 	}
 }

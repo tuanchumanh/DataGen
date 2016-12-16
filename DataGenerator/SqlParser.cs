@@ -19,13 +19,17 @@ namespace DataGenerator
 			}
 		}
 
-		private List<Table> settings;
+		public IList<ParseError> Errors { get; private set; }
+
+		private List<Table> settings = new List<Table>();
 
 		public SqlParser(string query)
 		{
 			TSqlParser parser = new TSql140Parser(true);
 			IList<ParseError> errors;
 			TSqlScript script;
+
+			Errors = new List<ParseError>();
 
 			using (TextReader reader = new StringReader(query))
 			{
@@ -34,6 +38,7 @@ namespace DataGenerator
 
 			if (errors.Count > 0)
 			{
+				this.Errors = errors;
 				return;
 			}
 
@@ -45,31 +50,9 @@ namespace DataGenerator
 
 				// Table list
 				List<Table> tableList = new List<Table>();
-				TableReference tableRef = querySpec.FromClause.TableReferences[0];
+				SqlParser.GetTableListFromQuerySpec(querySpec, tableList);
 
-				if (tableRef is NamedTableReference)
-				{
-					NamedTableReference namedTableRef = (NamedTableReference)tableRef;
-
-					tableList.Add(new Table()
-					{
-						Alias = namedTableRef.Alias.Value,
-						Name = namedTableRef.SchemaObject.BaseIdentifier.Value,
-					});
-				}
-
-				// Join list
-				if (tableRef is QualifiedJoin)
-				{
-					// Truong hop co join
-					QualifiedJoin join = (QualifiedJoin)tableRef;
-					GetTable(join, tableList);
-
-					// Lay ra chi tiet noi dung join
-					GetJoins(join, tableList);
-				}
-
-				// Condition list
+				// Lay ra dieu kien WHERE
 				if (querySpec.WhereClause.SearchCondition is BooleanBinaryExpression)
 				{
 					GetJoinConditions((BooleanBinaryExpression)querySpec.WhereClause.SearchCondition, tableList);
@@ -79,21 +62,55 @@ namespace DataGenerator
 			}
 			else
 			{
+				ParseError error = new ParseError(0, 0, 0, 0, "Not a select statement.");
+				errors.Add(error);
+				this.Errors = errors;
 				return;
+			}
+		}
+
+		private static void GetTableListFromQuerySpec(QuerySpecification querySpec, List<Table> tableList)
+		{
+			TableReference tableRef = querySpec.FromClause.TableReferences[0];
+
+			if (tableRef is NamedTableReference)
+			{
+				// Truong hop khong co join
+				NamedTableReference namedTableRef = (NamedTableReference)tableRef;
+
+				tableList.Add(new Table()
+				{
+					Alias = namedTableRef.Alias.Value,
+					Name = namedTableRef.SchemaObject.BaseIdentifier.Value,
+					Conditions = new List<Condition>(),
+					Joins = new List<Join>(),
+				});
+			}
+
+			// Truong hop co join, lay ra thong tin join cua cac table
+			if (tableRef is QualifiedJoin)
+			{
+				QualifiedJoin join = (QualifiedJoin)tableRef;
+				SqlParser.GetTable(join, tableList);
+
+				// Lay ra chi tiet noi dung join
+				SqlParser.GetJoins(join, tableList);
 			}
 		}
 
 		private static void GetJoins(QualifiedJoin joinExpression, List<Table> tableList)
 		{
+			// Recursive de lay ra tat ca cac join
 			if (joinExpression.FirstTableReference is QualifiedJoin)
 			{
-				GetJoins((QualifiedJoin)joinExpression.FirstTableReference, tableList);
+				SqlParser.GetJoins((QualifiedJoin)joinExpression.FirstTableReference, tableList);
 			}
 
-			var expression = joinExpression.SearchCondition;
+			// Lay ra dieu kien join
+			BooleanExpression expression = joinExpression.SearchCondition;
 			if (expression is BooleanBinaryExpression)
 			{
-				GetJoinConditions((BooleanBinaryExpression)expression, tableList);
+				SqlParser.GetJoinConditions((BooleanBinaryExpression)expression, tableList);
 			}
 		}
 
@@ -101,54 +118,12 @@ namespace DataGenerator
 		{
 			if (expression.FirstExpression is BooleanBinaryExpression)
 			{
-				GetJoinConditions((BooleanBinaryExpression)expression.FirstExpression, tableList);
+				SqlParser.GetJoinConditions((BooleanBinaryExpression)expression.FirstExpression, tableList);
 
 				// Chi lay ra dieu kien so sanh column
 				if (expression.SecondExpression is BooleanComparisonExpression)
 				{
-					BooleanComparisonExpression compareExpression = (BooleanComparisonExpression)expression.SecondExpression;
-					if (compareExpression.FirstExpression is ColumnReferenceExpression
-						&& compareExpression.SecondExpression is ColumnReferenceExpression)
-					{
-						ColumnReferenceExpression joinLeft = (ColumnReferenceExpression)compareExpression.FirstExpression;
-						ColumnReferenceExpression joinRight = (ColumnReferenceExpression)compareExpression.SecondExpression;
-
-						Join join = new Join()
-						{
-							Table1 = tableList.Single(tbl => tbl.Alias == joinLeft.MultiPartIdentifier.Identifiers[0].Value),
-							Column1 = joinLeft.MultiPartIdentifier.Identifiers[1].Value,
-							Table2 = tableList.Single(tbl => tbl.Alias == joinRight.MultiPartIdentifier.Identifiers[0].Value),
-							Column2 = joinRight.MultiPartIdentifier.Identifiers[1].Value,
-							Operator = GetOperator(compareExpression.ComparisonType),
-						};
-
-						tableList.Single(tbl => tbl.Alias == joinLeft.MultiPartIdentifier.Identifiers[0].Value).Joins.Add(join);
-					}
-					else if (compareExpression.FirstExpression is ColumnReferenceExpression
-						&& compareExpression.SecondExpression is Literal)
-					{
-						ColumnReferenceExpression joinLeft = (ColumnReferenceExpression)compareExpression.FirstExpression;
-						Literal stringValue = (Literal)compareExpression.SecondExpression;
-
-						if (joinLeft.MultiPartIdentifier.Count == 2)
-						{
-							// Truong hop co ghi alias: B.CaseID = N'poPO'
-							Condition condition = new Condition()
-							{
-								Table = tableList.Single(tbl => tbl.Alias == joinLeft.MultiPartIdentifier.Identifiers[0].Value),
-								Column = joinLeft.MultiPartIdentifier.Identifiers[1].Value,
-								Value = stringValue.Value,
-								Operator = GetOperator(compareExpression.ComparisonType),
-							};
-
-							tableList.Single(tbl => tbl.Alias == joinLeft.MultiPartIdentifier.Identifiers[0].Value).Conditions.Add(condition);
-						}
-						else if (joinLeft.MultiPartIdentifier.Count == 1)
-						{
-							// Truong hop khong ghi alias: CaseUse = N'Y'
-							// TODO: LAM THE NAO?
-						}
-					}
+					SqlParser.AddComparisonExpression((BooleanComparisonExpression)expression.SecondExpression, tableList);
 				}
 				
 				if (expression.SecondExpression is InPredicate)
@@ -162,36 +137,66 @@ namespace DataGenerator
 
 						Condition condition = new Condition()
 						{
-							Table = tableList.Single(tbl => tbl.Alias == colRef.MultiPartIdentifier.Identifiers[0].Value),
+							Table = tableList.First(tbl => tbl.Alias == colRef.MultiPartIdentifier.Identifiers[0].Value),
 							Column = colRef.MultiPartIdentifier.Identifiers[1].Value,
 							Value = value,
 							Operator = Operators.In,
 						};
 
-						tableList.Single(tbl => tbl.Alias == colRef.MultiPartIdentifier.Identifiers[0].Value).Conditions.Add(condition);
+						tableList.First(tbl => tbl.Alias == colRef.MultiPartIdentifier.Identifiers[0].Value).Conditions.Add(condition);
 					}
 				}
 			}
 
 			if (expression.FirstExpression is BooleanComparisonExpression)
 			{
-				BooleanComparisonExpression compareExpression = (BooleanComparisonExpression)expression.FirstExpression;
-				if (compareExpression.FirstExpression is ColumnReferenceExpression
-					&& compareExpression.SecondExpression is ColumnReferenceExpression)
-				{
-					ColumnReferenceExpression joinLeft = (ColumnReferenceExpression)compareExpression.FirstExpression;
-					ColumnReferenceExpression joinRight = (ColumnReferenceExpression)compareExpression.SecondExpression;
+				SqlParser.AddComparisonExpression((BooleanComparisonExpression)expression.FirstExpression, tableList);
+			}
+		}
 
-					Join join = new Join()
+		private static void AddComparisonExpression(BooleanComparisonExpression compareExpression, List<Table> tableList)
+		{
+			if (compareExpression.FirstExpression is ColumnReferenceExpression
+				&& compareExpression.SecondExpression is ColumnReferenceExpression)
+			{
+				ColumnReferenceExpression joinLeft = (ColumnReferenceExpression)compareExpression.FirstExpression;
+				ColumnReferenceExpression joinRight = (ColumnReferenceExpression)compareExpression.SecondExpression;
+
+				Join join = new Join()
+				{
+					Table1 = tableList.First(tbl => tbl.Alias == joinLeft.MultiPartIdentifier.Identifiers[0].Value),
+					Column1 = joinLeft.MultiPartIdentifier.Identifiers[1].Value,
+					Table2 = tableList.First(tbl => tbl.Alias == joinRight.MultiPartIdentifier.Identifiers[0].Value),
+					Column2 = joinRight.MultiPartIdentifier.Identifiers[1].Value,
+					Operator = GetOperator(compareExpression.ComparisonType),
+				};
+
+				tableList.First(tbl => tbl.Alias == joinLeft.MultiPartIdentifier.Identifiers[0].Value).Joins.Add(join);
+			}
+			else if (compareExpression.FirstExpression is ColumnReferenceExpression
+				&& compareExpression.SecondExpression is Literal)
+			{
+				ColumnReferenceExpression joinLeft = (ColumnReferenceExpression)compareExpression.FirstExpression;
+				Literal stringValue = (Literal)compareExpression.SecondExpression;
+
+				if (joinLeft.MultiPartIdentifier.Count == 2)
+				{
+					// Truong hop co ghi alias: B.CaseID = N'poPO'
+					Condition condition = new Condition()
 					{
-						Table1 = tableList.Single(tbl => tbl.Alias == joinLeft.MultiPartIdentifier.Identifiers[0].Value),
-						Column1 = joinLeft.MultiPartIdentifier.Identifiers[1].Value,
-						Table2 = tableList.Single(tbl => tbl.Alias == joinRight.MultiPartIdentifier.Identifiers[0].Value),
-						Column2 = joinRight.MultiPartIdentifier.Identifiers[1].Value,
+						Table = tableList.First(tbl => tbl.Alias == joinLeft.MultiPartIdentifier.Identifiers[0].Value),
+						Column = joinLeft.MultiPartIdentifier.Identifiers[1].Value,
+						Value = stringValue.Value,
 						Operator = GetOperator(compareExpression.ComparisonType),
 					};
 
-					tableList.Single(tbl => tbl.Alias == joinLeft.MultiPartIdentifier.Identifiers[0].Value).Joins.Add(join);
+					tableList.First(tbl => tbl.Alias == joinLeft.MultiPartIdentifier.Identifiers[0].Value).Conditions.Add(condition);
+
+				}
+				else if (joinLeft.MultiPartIdentifier.Count == 1)
+				{
+					// Truong hop khong ghi alias: CaseUse = N'Y'
+					// TODO: LAM THE NAO?
 				}
 			}
 		}
@@ -227,13 +232,12 @@ namespace DataGenerator
 		{
 			if (join.FirstTableReference is QualifiedJoin)
 			{
-				GetTable((QualifiedJoin)join.FirstTableReference, tableList);
+				SqlParser.GetTable((QualifiedJoin)join.FirstTableReference, tableList);
 			}
 
 			if (join.FirstTableReference is NamedTableReference)
 			{
 				NamedTableReference namedTableRef = (NamedTableReference)join.FirstTableReference;
-
 				tableList.Add(new Table()
 				{
 					Alias = namedTableRef.Alias.Value,
@@ -243,15 +247,34 @@ namespace DataGenerator
 				});
 			}
 
-			NamedTableReference namedTableRef2 = (NamedTableReference)join.SecondTableReference;
-
-			tableList.Add(new Table()
+			if (join.SecondTableReference is NamedTableReference)
 			{
-				Alias = namedTableRef2.Alias.Value,
-				Name = namedTableRef2.SchemaObject.BaseIdentifier.Value,
-				Joins = new List<Join>(),
-				Conditions = new List<Condition>(),
-			});
+				NamedTableReference namedTableRef2 = (NamedTableReference)join.SecondTableReference;
+				tableList.Add(new Table()
+				{
+					Alias = namedTableRef2.Alias.Value,
+					Name = namedTableRef2.SchemaObject.BaseIdentifier.Value,
+					Joins = new List<Join>(),
+					Conditions = new List<Condition>(),
+				});
+			}
+
+			// TODO: Subquery
+			if (join.FirstTableReference is QueryDerivedTable)
+			{
+				SqlParser.GetTableFromSubquery((QueryDerivedTable)join.FirstTableReference, tableList);
+			}
+
+			if (join.SecondTableReference is QueryDerivedTable)
+			{
+				SqlParser.GetTableFromSubquery((QueryDerivedTable)join.SecondTableReference, tableList);
+			}
+		}
+
+		private static void GetTableFromSubquery(QueryDerivedTable table, List<Table> tableList)
+		{
+			QuerySpecification querySpec = (QuerySpecification)table.QueryExpression;
+			SqlParser.GetTableListFromQuerySpec(querySpec, tableList);
 		}
 	}
 }

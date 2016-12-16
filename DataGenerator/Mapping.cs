@@ -13,6 +13,7 @@ namespace DataGenerator
 	internal class Mapping
 	{
 		public List<Table> Tables = new List<Table>();
+		public SqlParser Parser { get; private set; }
 
 		public Mapping()
 		{
@@ -27,8 +28,8 @@ namespace DataGenerator
 				return;
 			}
 
-			SqlParser parser = new SqlParser(query);
-			this.Tables = parser.TableSettings.ToList();
+			this.Parser = new SqlParser(query);
+			this.Tables = this.Parser.TableSettings.ToList();
 		}
 
 		protected void ReadSettingFile()
