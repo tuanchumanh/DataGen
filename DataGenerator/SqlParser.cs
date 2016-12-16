@@ -125,10 +125,10 @@ namespace DataGenerator
 						tableList.Single(tbl => tbl.Alias == joinLeft.MultiPartIdentifier.Identifiers[0].Value).Joins.Add(join);
 					}
 					else if (compareExpression.FirstExpression is ColumnReferenceExpression
-						&& compareExpression.SecondExpression is StringLiteral)
+						&& compareExpression.SecondExpression is Literal)
 					{
 						ColumnReferenceExpression joinLeft = (ColumnReferenceExpression)compareExpression.FirstExpression;
-						StringLiteral stringValue = (StringLiteral)compareExpression.SecondExpression;
+						Literal stringValue = (Literal)compareExpression.SecondExpression;
 
 						if (joinLeft.MultiPartIdentifier.Count == 2)
 						{
@@ -148,6 +148,27 @@ namespace DataGenerator
 							// Truong hop khong ghi alias: CaseUse = N'Y'
 							// TODO: LAM THE NAO?
 						}
+					}
+				}
+				
+				if (expression.SecondExpression is InPredicate)
+				{
+					// TODO: IN Subquery
+					InPredicate inPredicate = (InPredicate)expression.SecondExpression;
+					ColumnReferenceExpression colRef = (ColumnReferenceExpression)inPredicate.Expression;
+					if (colRef.MultiPartIdentifier.Identifiers.Count == 2)
+					{
+						InValues<string> value = new InValues<string>(inPredicate.Values.Select(v => ((Literal)v).Value));
+
+						Condition condition = new Condition()
+						{
+							Table = tableList.Single(tbl => tbl.Alias == colRef.MultiPartIdentifier.Identifiers[0].Value),
+							Column = colRef.MultiPartIdentifier.Identifiers[1].Value,
+							Value = value,
+							Operator = Operators.In,
+						};
+
+						tableList.Single(tbl => tbl.Alias == colRef.MultiPartIdentifier.Identifiers[0].Value).Conditions.Add(condition);
 					}
 				}
 			}

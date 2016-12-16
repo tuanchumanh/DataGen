@@ -1,10 +1,12 @@
 ﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Configuration;
 using System.Data;
 using System.Data.SqlClient;
 using System.Linq;
 using System.Text;
+using System.Threading;
 using System.Windows.Forms;
 
 namespace DataGenerator
@@ -48,9 +50,9 @@ namespace DataGenerator
 			}
 
 			// Base tren bang dau tien
-			if (!DataExists(this.setting.Tables[0]))
+			if (!DataExists(this.setting.Tables[0], true))
 			{
-				// Tao data cho tat ca cac bang
+				// Truong hop khong tim thay data, tao data cho tat ca cac bang
 				foreach (Table table in this.setting.Tables)
 				{
 					DataTable dummyData = CreateData(table);
@@ -69,6 +71,7 @@ namespace DataGenerator
 			}
 			else
 			{
+				// Tim thay data bang dau tien
 				this.tempData.Add(this.setting.Tables[0].Alias, GetData(this.setting.Tables[0]));
 
 				// Join thu, lay ra cac bang khong join duoc theo dieu kien da chi dinh
@@ -125,7 +128,6 @@ namespace DataGenerator
 				queryBuilder.AppendLine();
 
 				// Loop qua tung doi tuong join cua bang
-				int paramIndex = 0;
 				foreach (Table joinTargetTable in
 					table.Joins.OrderBy(j => j.Table2.Alias).GroupBy(j => j.Table2).Select(g => g.First().Table2))
 				{
@@ -151,34 +153,8 @@ namespace DataGenerator
 
 						// Them tat ca dieu kien where vao query check
 						// Them dieu kien where cua bang hien tai
-						foreach (Condition cond1 in table.Conditions)
-						{
-							queryBuilder
-								.AppendFormat(
-									" {0}.{1} {2} @param{3} AND",
-									join.Table1.Alias,
-									cond1.Column,
-									Mapping.GetOperatorForQuery(cond1.Operator),
-									paramIndex)
-								.AppendLine();
-							cmd.Parameters.AddWithValue("@param" + paramIndex, cond1.Value);
-							paramIndex++;
-						}
-
-						// Them dieu kien where cua bang doi tuong
-						foreach (Condition cond2 in joinTargetTable.Conditions)
-						{
-							queryBuilder
-								.AppendFormat(
-									" {0}.{1} {2} @param{3} AND",
-									join.Table2.Alias + joinNo,
-									cond2.Column,
-									Mapping.GetOperatorForQuery(cond2.Operator),
-									paramIndex)
-								.AppendLine();
-							cmd.Parameters.AddWithValue("@param" + paramIndex, cond2.Value);
-							paramIndex++;
-						}
+						AppendWhereConditions(join.Table1.Alias, cmd.Parameters, table.Conditions, queryBuilder);
+						AppendWhereConditions(join.Table2.Alias + joinNo, cmd.Parameters, joinTargetTable.Conditions, queryBuilder);
 
 						queryBuilder.Remove(queryBuilder.Length - 5, 3);
 
@@ -237,30 +213,20 @@ namespace DataGenerator
 				StringBuilder queryBuilder = new StringBuilder();
 				queryBuilder.AppendFormat("SELECT TOP 1 * FROM {0} WHERE 1=1 AND", table.Name).AppendLine();
 
-				int idx = 0;
-				foreach (var cond in table.Conditions)
-				{
-					queryBuilder
-						.AppendFormat(
-							" {0} {1} @param{2} AND",
-							cond.Column,
-							Mapping.GetOperatorForQuery(cond.Operator),
-							idx)
-						.AppendLine();
-					cmd.Parameters.AddWithValue("@param" + idx, cond.Value);
-					idx++;
-				}
+				AppendWhereConditions(table.Name, cmd.Parameters, table.Conditions, queryBuilder);
 
 				queryBuilder.Remove(queryBuilder.Length - 5, 3);
 				cmd.CommandText = queryBuilder.ToString();
 
 				sqlConnection1.Open();
-				using (SqlDataReader reader = cmd.ExecuteReader())
+				DataTable result = new DataTable();
+				using (SqlDataReader reader = cmd.ExecuteReader(CommandBehavior.KeyInfo))
 				{
-					DataTable result = new DataTable();
 					result.Load(reader);
-					return result;
 				}
+
+				CreateDataForInClause(table, result);
+				return result;
 			}
 		}
 
@@ -269,7 +235,7 @@ namespace DataGenerator
 		/// </summary>
 		/// <param name="table"></param>
 		/// <returns></returns>
-		private static bool DataExists(Table table, bool conditionCheck = true)
+		private static bool DataExists(Table table, bool conditionCheck)
 		{
 			using (SqlConnection conn = new SqlConnection(connectionString))
 			using (SqlCommand cmd = new SqlCommand())
@@ -283,19 +249,7 @@ namespace DataGenerator
 				if (conditionCheck)
 				{
 					// Check dieu kien where
-					int idx = 0;
-					foreach (var cond in table.Conditions)
-					{
-						queryBuilder
-							.AppendFormat(
-								" {0} {1} @param{2} AND",
-								cond.Column,
-								Mapping.GetOperatorForQuery(cond.Operator),
-								idx)
-							.AppendLine();
-						cmd.Parameters.AddWithValue("@param" + idx, cond.Value);
-						idx++;
-					}
+					AppendWhereConditions(table.Name, cmd.Parameters, table.Conditions, queryBuilder);
 				}
 
 				queryBuilder.Remove(queryBuilder.Length - 5, 3);
@@ -376,34 +330,8 @@ namespace DataGenerator
 					StringBuilder conditionsBuilder = new StringBuilder();
 					conditionsBuilder.AppendLine(" WHERE 1=1 AND");
 
-					int idx = 0;
-					foreach (Condition cond in table1.Conditions)
-					{
-						conditionsBuilder
-							.AppendFormat(
-								" {0}.{1} {2} @param{3} AND",
-								cond.Table.Alias,
-								cond.Column,
-								Mapping.GetOperatorForQuery(cond.Operator),
-								idx)
-							.AppendLine();
-						cmd.Parameters.AddWithValue("@param" + idx, cond.Value);
-						idx++;
-					}
-
-					foreach (Condition cond in table2.Conditions)
-					{
-						conditionsBuilder
-							.AppendFormat(
-								" {0}.{1} {2} @param{3} AND",
-								cond.Table.Alias,
-								cond.Column,
-								Mapping.GetOperatorForQuery(cond.Operator),
-								idx)
-							.AppendLine();
-						cmd.Parameters.AddWithValue("@param" + idx, cond.Value);
-						idx++;
-					}
+					AppendWhereConditions(table1.Alias, cmd.Parameters, table1.Conditions, conditionsBuilder);
+					AppendWhereConditions(table2.Alias, cmd.Parameters, table1.Conditions, conditionsBuilder);
 
 					string joinConditions = joinCondBuilder.ToString();
 					string whereConditions = conditionsBuilder.ToString();
@@ -459,7 +387,7 @@ namespace DataGenerator
 			}
 			else if (DataExists(table, false))
 			{
-				// Lay data random cua bang
+				// Lay data dua tren data co san cua bang -> skip qua xu ly nay
 			}
 			else
 			{
@@ -479,20 +407,7 @@ namespace DataGenerator
 
 				if (conditionsMatch)
 				{
-					// Check dieu kien where
-					int idx = 0;
-					foreach (var cond in table.Conditions)
-					{
-						queryBuilder
-							.AppendFormat(
-								" {0} {1} @param{2} AND",
-								cond.Column,
-								Mapping.GetOperatorForQuery(cond.Operator),
-								idx)
-							.AppendLine();
-						cmd.Parameters.AddWithValue("@param" + idx, cond.Value);
-						idx++;
-					}
+					AppendWhereConditions(table.Name, cmd.Parameters, table.Conditions, queryBuilder);
 				}
 
 				queryBuilder.Remove(queryBuilder.Length - 5, 3);
@@ -504,16 +419,73 @@ namespace DataGenerator
 					result.Load(reader);
 				}
 
-				// Set lai dieu kien where
+				// Dua tren data lay tu DB, chi thay doi dieu kien where cho match voi query
 				foreach (Condition cond in table.Conditions)
 				{
-					result.Rows[0][cond.Column] = cond.Value;
+					if (cond.Value is InValues)
+					{
+						// Dieu kien IN set sau
+						continue;
+					}
 
-					// TODO: Operator
+					foreach (DataRow resultRow in result.Rows)
+					{
+						resultRow[cond.Column] = cond.Value;
+						// TODO: Operator
+					}
 				}
+
+				// Loop lai 1 lan nua de set cho dieu kien IN
+				CreateDataForInClause(table, result);
 			}
 
 			return result;
+		}
+
+		/// <summary>
+		/// Tao data cho dieu kien IN
+		/// </summary>
+		/// <param name="table"></param>
+		/// <param name="result"></param>
+		private static void CreateDataForInClause(Table table, DataTable result)
+		{
+			foreach (Condition cond in table.Conditions)
+			{
+				if (cond.Value is InValues)
+				{
+					// TODO: IN Subquery
+					List<object> values = ((IEnumerable)cond.Value).Cast<object>().ToList();
+					if (values.Count > 0)
+					{
+						result.Rows[0][cond.Column] = values[0];
+						// TODO: IN Variations
+						foreach (var value in values.Skip(1))
+						{
+							// Them row ung voi moi gia tri cua IN clause
+							DataRow newRow = result.NewRow();
+							DataRow sourceRow = result.Rows[0];
+							newRow.ItemArray = sourceRow.ItemArray.Clone() as object[];
+
+							newRow[cond.Column] = value;
+
+							// Thay doi PK cho khac nhau
+							foreach (DataColumn key in result.PrimaryKey.Where(key =>
+									!table.Conditions.Select(c => c.Column).Contains(key.ColumnName)))
+							{
+								newRow[key] =
+									Generator.GenerateDummyData(
+										key.ColumnName,
+										key.DataType,
+										key.MaxLength,
+										1,
+										0);
+							}
+
+							result.Rows.Add(newRow);
+						}
+					}
+				}
+			}
 		}
 
 		/// <summary>
@@ -574,6 +546,68 @@ namespace DataGenerator
 				result.Rows.Add(dummyRow);
 
 				return result;
+			}
+		}
+
+		private static int paramIndex = 0;
+
+		/// <summary>
+		/// Them where vao cau lenh
+		/// </summary>
+		/// <param name="tableName"></param>
+		/// <param name="paramCollection"></param>
+		/// <param name="conditions"></param>
+		/// <param name="builder"></param>
+		private static void AppendWhereConditions(
+			string tableName,
+			SqlParameterCollection paramCollection,
+			List<Condition> conditions,
+			StringBuilder builder)
+		{
+			foreach (Condition condition in conditions)
+			{
+				if (condition.Operator == Operators.In)
+				{
+					IEnumerable values = (IEnumerable)condition.Value;
+					if (values.Cast<object>().Count() == 0)
+					{
+						continue;
+					}
+
+					int inParamIndex = paramIndex;
+					builder
+						.AppendFormat(
+							" {0}.{1} {2} ({3}) AND",
+							tableName,
+							condition.Column,
+							Mapping.GetOperatorForQuery(condition.Operator),
+							string.Join(",", values.Cast<object>().Select(x => "@param" + inParamIndex++ )))
+						.AppendLine();
+
+					inParamIndex = 0;
+					foreach (var value in (IEnumerable)condition.Value)
+					{
+						paramCollection.AddWithValue("@param" + paramIndex, value);
+
+						// paramIndex++
+						Interlocked.Increment(ref paramIndex);
+					}
+				}
+				else
+				{
+					builder
+						.AppendFormat(
+							" {0}.{1} {2} @param{3} AND",
+							tableName,
+							condition.Column,
+							Mapping.GetOperatorForQuery(condition.Operator),
+							paramIndex)
+						.AppendLine();
+					paramCollection.AddWithValue("@param" + paramIndex, condition.Value);
+
+					// paramIndex++
+					Interlocked.Increment(ref paramIndex);
+				}
 			}
 		}
 

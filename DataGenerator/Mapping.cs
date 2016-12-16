@@ -108,6 +108,8 @@ namespace DataGenerator
 					return "<";
 				case Operators.LessThanOrEqual:
 					return "<=";
+				case Operators.In:
+					return "IN";
 				default:
 					throw new ArgumentException("OPERATOR??");
 			}
@@ -129,6 +131,8 @@ namespace DataGenerator
 					return Operators.LessThan;
 				case "<":
 					return Operators.LessThanOrEqual;
+				case "IN":
+					return Operators.In;
 				default:
 					throw new ArgumentException("OPERATOR??");
 			}
@@ -136,7 +140,7 @@ namespace DataGenerator
 	}
 
 	/// <summary>
-	/// ≠,=,≧,≦,&lt;,&gt;
+	/// ≠,=,≧,≦,&lt;,&gt;,IN
 	/// </summary>
 	public enum Operators
 	{
@@ -146,6 +150,7 @@ namespace DataGenerator
 		GreaterThanOrEqual,
 		LessThan,
 		LessThanOrEqual,
+		In,
 	}
 
 	public class Table
@@ -172,5 +177,40 @@ namespace DataGenerator
 		public string Column { get; set; }
 		public object Value { get; set; }
 		public Operators Operator { get; set; }
+	}
+
+	public interface InValues
+	{
+
+	}
+
+	public class InValues<T> : IEnumerable<T>, InValues
+	{
+		private List<T> values = new List<T>();
+
+		public InValues(IEnumerable<T> values)
+		{
+			this.values = values.ToList();
+		}
+
+		public override string ToString()
+		{
+			if (typeof(T) == typeof(String))
+			{
+				return string.Format("({0})", string.Join(",", values.Select(v => string.Format("N'{0}'", v))));
+			}
+
+			return string.Format("({0})", string.Join(",", values));
+		}
+
+		public IEnumerator<T> GetEnumerator()
+		{
+			return this.values.GetEnumerator();
+		}
+
+		System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator()
+		{
+			return this.GetEnumerator();
+		}
 	}
 }
