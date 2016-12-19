@@ -49,6 +49,8 @@ namespace DataGenerator
 			if (this.setting.Parser.Errors.Count > 0)
 			{
 				this.lblStatus.Text = "Parse error.";
+				MessageBox.Show(string.Join(Environment.NewLine, this.setting.Parser.Errors.Select(err => err.Message)), "Parse error");
+
 				return;
 			}
 

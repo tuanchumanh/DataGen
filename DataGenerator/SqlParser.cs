@@ -72,15 +72,25 @@ namespace DataGenerator
 					}
 				}
 
+				// Duplicate alias
+				foreach (Table table in tableList)
+				{
+					if (tableList.Where(tbl => tbl != table).Any(tbl => tbl.Alias == table.Alias))
+					{
+						ParseError error = new ParseError(0, 0, 0, 0, string.Format("Duplicate alias: {0} {1}", table.Alias, table.Name));
+						errors.Add(error);
+					}
+				}
+
 				this.settings = tableList;
 			}
 			else
 			{
 				ParseError error = new ParseError(0, 0, 0, 0, "Not a select statement.");
 				errors.Add(error);
-				this.Errors = errors;
-				return;
 			}
+
+			this.Errors = errors;
 		}
 
 		private static void GetTableListFromQuerySpec(QuerySpecification querySpec, List<Table> tableList)
