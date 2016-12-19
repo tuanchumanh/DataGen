@@ -699,8 +699,8 @@ namespace DataGenerator
 
 			if (tempData.Count > 0)
 			{
-				btnExcel.Enabled = true;
-				btnInsert.Enabled = true;
+				//btnExcel.Enabled = true;
+				//btnInsert.Enabled = true;
 			}
 		}
 

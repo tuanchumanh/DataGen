@@ -1,5 +1,4 @@
-﻿using Excel;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Configuration;
 using System.Data;
@@ -34,63 +33,63 @@ namespace DataGenerator
 
 		protected void ReadSettingFile()
 		{
-			FileStream stream = File.Open(ConfigurationManager.AppSettings["SettingFilePath"], FileMode.Open, FileAccess.Read);
-			IExcelDataReader excelReader = ExcelReaderFactory.CreateOpenXmlReader(stream);
+			//FileStream stream = File.Open(ConfigurationManager.AppSettings["SettingFilePath"], FileMode.Open, FileAccess.Read);
+			//IExcelDataReader excelReader = ExcelReaderFactory.CreateOpenXmlReader(stream);
 
-			excelReader.IsFirstRowAsColumnNames = true;
-			DataSet result = excelReader.AsDataSet();
+			//excelReader.IsFirstRowAsColumnNames = true;
+			//DataSet result = excelReader.AsDataSet();
 
-			if (result.Tables.Contains("Tables"))
-			{
-				DataTable tablesDt = result.Tables["Tables"];
-				DataTable joinsDt = result.Tables.Contains("Joins") ? result.Tables["Joins"] : new DataTable();
-				DataTable condsDt = result.Tables.Contains("Conditions") ? result.Tables["Conditions"] : new DataTable();
+			//if (result.Tables.Contains("Tables"))
+			//{
+			//	DataTable tablesDt = result.Tables["Tables"];
+			//	DataTable joinsDt = result.Tables.Contains("Joins") ? result.Tables["Joins"] : new DataTable();
+			//	DataTable condsDt = result.Tables.Contains("Conditions") ? result.Tables["Conditions"] : new DataTable();
 
-				foreach (DataRow table in tablesDt.Rows)
-				{
-					Table tableSetting = new Table
-					{
-						Name = table["TableName"] as string,
-						Alias = table["Alias"] as string,
-					};
+			//	foreach (DataRow table in tablesDt.Rows)
+			//	{
+			//		Table tableSetting = new Table
+			//		{
+			//			Name = table["TableName"] as string,
+			//			Alias = table["Alias"] as string,
+			//		};
 
-					Tables.Add(tableSetting);
-				}
+			//		Tables.Add(tableSetting);
+			//	}
 
-				foreach (Table tableSetting in Tables)
-				{
-					tableSetting.Joins = new List<Join>();
-					foreach (DataRow joins in joinsDt.Rows.Cast<DataRow>().Where(row => row["Table1"] as string == tableSetting.Alias))
-					{
-						tableSetting.Joins.Add(new Join
-						{
-							Column1 = joins["Column1"] as string,
-							Column2 = joins["Column2"] as string,
-							Operator = Mapping.GetOperator(joins["Operator"] as string),
-							Table1 = tableSetting,
-							Table2 = Tables.Where(tableSetting2 => tableSetting2.Alias == joins["Table2"] as string).First(),
-						});
-					}
+			//	foreach (Table tableSetting in Tables)
+			//	{
+			//		tableSetting.Joins = new List<Join>();
+			//		foreach (DataRow joins in joinsDt.Rows.Cast<DataRow>().Where(row => row["Table1"] as string == tableSetting.Alias))
+			//		{
+			//			tableSetting.Joins.Add(new Join
+			//			{
+			//				Column1 = joins["Column1"] as string,
+			//				Column2 = joins["Column2"] as string,
+			//				Operator = Mapping.GetOperator(joins["Operator"] as string),
+			//				Table1 = tableSetting,
+			//				Table2 = Tables.Where(tableSetting2 => tableSetting2.Alias == joins["Table2"] as string).First(),
+			//			});
+			//		}
 
-					tableSetting.Conditions = new List<Condition>();
-					foreach (DataRow joins in condsDt.Rows.Cast<DataRow>().Where(row => row["Table"] as string == tableSetting.Alias))
-					{
-						tableSetting.Conditions.Add(new Condition
-						{
-							Column = joins["Column"] as string,
-							Operator = Mapping.GetOperator(joins["Operator"] as string),
-							Value = joins["Value"],
-							Table = tableSetting,
-						});
-					}
-				}
-			}
-			else
-			{
-				throw new ArgumentException("Settings read failed.");
-			}
+			//		tableSetting.Conditions = new List<Condition>();
+			//		foreach (DataRow joins in condsDt.Rows.Cast<DataRow>().Where(row => row["Table"] as string == tableSetting.Alias))
+			//		{
+			//			tableSetting.Conditions.Add(new Condition
+			//			{
+			//				Column = joins["Column"] as string,
+			//				Operator = Mapping.GetOperator(joins["Operator"] as string),
+			//				Value = joins["Value"],
+			//				Table = tableSetting,
+			//			});
+			//		}
+			//	}
+			//}
+			//else
+			//{
+			//	throw new ArgumentException("Settings read failed.");
+			//}
 
-			excelReader.Close();
+			//excelReader.Close();
 		}
 
 		public static string GetOperatorForQuery(Operators op)
