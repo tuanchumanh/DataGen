@@ -194,19 +194,64 @@ namespace DataGenerator
 			ColumnReferenceExpression colRef = (ColumnReferenceExpression)inPredicate.Expression;
 
 			// Lay ra table cua dieu kien
-			string colName = colRef.MultiPartIdentifier.Identifiers[colRef.MultiPartIdentifier.Identifiers.Count - 1].Value; ;
+			string colName = colRef.MultiPartIdentifier.Identifiers[colRef.MultiPartIdentifier.Identifiers.Count - 1].Value;
 			Table targetTable = SqlParser.GetTableHavingColumn(colName, colRef, tableList);
 
-			InValues<string> value = new InValues<string>(inPredicate.Values.Select(v => ((Literal)v).Value));
-			Condition condition = new Condition()
+			// Truong hop IN chi dinh gia tri cu the
+			if (inPredicate.Values.Count > 0)
 			{
-				Table = targetTable,
-				Column = colName,
-				Value = value,
-				Operator = Operators.In,
-			};
+				InValues<string> value = new InValues<string>(inPredicate.Values.Select(v => ((Literal)v).Value));
+				Condition condition = new Condition()
+				{
+					Table = targetTable,
+					Column = colName,
+					Value = value,
+					Operator = Operators.In,
+				};
 
-			targetTable.Conditions.Add(condition);
+				targetTable.Conditions.Add(condition);
+			}
+
+			// Truong hop IN subquery
+			if (inPredicate.Subquery != null)
+			{
+				QuerySpecification querySpec = (QuerySpecification)inPredicate.Subquery.QueryExpression;
+				List<Table> subQueryTableList = new List<Table>();
+				SqlParser.GetTableListFromQuerySpec(querySpec, subQueryTableList);
+
+				// Get ra column select cua subquery
+				IList<SelectElement> selectElements = querySpec.SelectElements;
+				if (selectElements.Count == 1)
+				{
+					SelectElement element = selectElements[0];
+					if (element is SelectScalarExpression)
+					{
+						SelectScalarExpression expression = (SelectScalarExpression)element;
+						if (expression.Expression is ColumnReferenceExpression)
+						{
+							// Tim ra column thuoc bang nao
+							ColumnReferenceExpression subColRef = (ColumnReferenceExpression)expression.Expression;
+							string subQueryColName = subColRef.MultiPartIdentifier.Identifiers[subColRef.MultiPartIdentifier.Identifiers.Count - 1].Value;
+							Table subQueryTargetTable = SqlParser.GetTableHavingColumn(subQueryColName, subColRef, subQueryTableList);
+							if (subQueryTargetTable != null)
+							{
+								// Tim thay table => coi dieu kien IN nhu la 1 dieu kien join
+								SqlParser.GetTableListFromQuerySpec(querySpec, tableList);
+								Join subQueryJoin = new Join()
+								{
+									Table1 = targetTable,
+									Table2 = subQueryTargetTable,
+									Operator = Operators.Equal,
+									Column1 = colName,
+									Column2 = subQueryColName,
+								};
+
+								targetTable.Joins.Add(subQueryJoin);
+							}
+						}
+					}
+				}
+			}
 		}
 
 		private static void AddBetweenCondition(BooleanTernaryExpression expression, List<Table> tableList)
