@@ -229,13 +229,14 @@ namespace DataGenerator
 						SelectScalarExpression expression = (SelectScalarExpression)element;
 						if (expression.Expression is ColumnReferenceExpression)
 						{
-							// Tim ra column thuoc bang nao
+							// Neu select column, tim ra column thuoc bang nao
 							ColumnReferenceExpression subColRef = (ColumnReferenceExpression)expression.Expression;
 							string subQueryColName = subColRef.MultiPartIdentifier.Identifiers[subColRef.MultiPartIdentifier.Identifiers.Count - 1].Value;
 							Table subQueryTargetTable = SqlParser.GetTableHavingColumn(subQueryColName, subColRef, subQueryTableList);
 							if (subQueryTargetTable != null)
 							{
 								// Tim thay table => coi dieu kien IN nhu la 1 dieu kien join
+								// Add them bang vao
 								SqlParser.GetTableListFromQuerySpec(querySpec, tableList);
 								Join subQueryJoin = new Join()
 								{
@@ -248,6 +249,20 @@ namespace DataGenerator
 
 								targetTable.Joins.Add(subQueryJoin);
 							}
+						}
+
+						if (expression.Expression is Literal)
+						{
+							// Neu select khong phai column, set value
+							Condition condition = new Condition()
+							{
+								Table = targetTable,
+								Column = colName,
+								Value = ((Literal)expression.Expression).Value,
+								Operator = Operators.Equal,
+							};
+
+							targetTable.Conditions.Add(condition);
 						}
 					}
 				}
