@@ -110,33 +110,43 @@ namespace DataGenerator
 					return "<=";
 				case Operators.In:
 					return "IN";
+				case Operators.Between:
+					return "BETWEEN";
+				case Operators.NotBetween:
+					return "NOT BETWEEN";
+				case Operators.Like:
+					return "LIKE";
 				default:
 					throw new ArgumentException("OPERATOR??");
 			}
 		}
 
-		private static Operators GetOperator(string settingValue)
-		{
-			switch (settingValue)
-			{
-				case "=":
-					return Operators.Equal;
-				case "≠":
-					return Operators.NotEqual;
-				case "≦":
-					return Operators.GreaterThan;
-				case "≧":
-					return Operators.GreaterThanOrEqual;
-				case ">":
-					return Operators.LessThan;
-				case "<":
-					return Operators.LessThanOrEqual;
-				case "IN":
-					return Operators.In;
-				default:
-					throw new ArgumentException("OPERATOR??");
-			}
-		}
+		//private static Operators GetOperator(string settingValue)
+		//{
+		//	switch (settingValue)
+		//	{
+		//		case "=":
+		//			return Operators.Equal;
+		//		case "≠":
+		//			return Operators.NotEqual;
+		//		case "≦":
+		//			return Operators.GreaterThan;
+		//		case "≧":
+		//			return Operators.GreaterThanOrEqual;
+		//		case ">":
+		//			return Operators.LessThan;
+		//		case "<":
+		//			return Operators.LessThanOrEqual;
+		//		case "IN":
+		//			return Operators.In;
+		//		case "BETWEEN":
+		//			return Operators.Between;
+		//		case "LIKE":
+		//			return Operators.Like;
+		//		default:
+		//			throw new ArgumentException("OPERATOR??");
+		//	}
+		//}
 	}
 
 	/// <summary>
@@ -151,6 +161,9 @@ namespace DataGenerator
 		LessThan,
 		LessThanOrEqual,
 		In,
+		Between,
+		NotBetween,
+		Like,
 	}
 
 	public class Table
@@ -176,6 +189,7 @@ namespace DataGenerator
 		public Table Table { get; set; }
 		public string Column { get; set; }
 		public object Value { get; set; }
+		public object Value2 { get; set; }
 		public Operators Operator { get; set; }
 	}
 

@@ -610,6 +610,26 @@ namespace DataGenerator
 						Interlocked.Increment(ref paramIndex);
 					}
 				}
+				else if (
+					condition.Operator == Operators.Between ||
+					condition.Operator == Operators.NotBetween)
+				{
+					builder
+						.AppendFormat(
+							" {0}.{1} {2} @param{3} AND @param{4} AND",
+							tableName,
+							condition.Column,
+							Mapping.GetOperatorForQuery(condition.Operator),
+							paramIndex,
+							paramIndex + 1)
+						.AppendLine();
+					paramCollection.AddWithValue("@param" + paramIndex, condition.Value);
+					paramCollection.AddWithValue("@param" + (paramIndex + 1), condition.Value);
+
+					// paramIndex++
+					Interlocked.Increment(ref paramIndex);
+					Interlocked.Increment(ref paramIndex);
+				}
 				else
 				{
 					builder

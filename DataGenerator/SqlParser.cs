@@ -56,19 +56,28 @@ namespace DataGenerator
 				// Lay ra dieu kien WHERE
 				if (querySpec.WhereClause != null)
 				{
+					// Co JOIN
 					if (querySpec.WhereClause.SearchCondition is BooleanBinaryExpression)
 					{
-						GetJoinConditions((BooleanBinaryExpression)querySpec.WhereClause.SearchCondition, tableList);
+						SqlParser.GetJoinConditions((BooleanBinaryExpression)querySpec.WhereClause.SearchCondition, tableList);
 					}
 
+					// Dieu kien WHERE so sanh
 					if (querySpec.WhereClause.SearchCondition is BooleanComparisonExpression)
 					{
-						SqlParser.AddComparisonExpression((BooleanComparisonExpression)querySpec.WhereClause.SearchCondition, tableList);
+						SqlParser.AddComparisonCondition((BooleanComparisonExpression)querySpec.WhereClause.SearchCondition, tableList);
 					}
 
+					// Dieu kien WHERE la IN
 					if (querySpec.WhereClause.SearchCondition is InPredicate)
 					{
 						SqlParser.AddInPredicateCondition((InPredicate)querySpec.WhereClause.SearchCondition, tableList);
+					}
+
+					// Dieu kien WHERE la BETWEEN
+					if (querySpec.WhereClause.SearchCondition is BooleanTernaryExpression)
+					{
+						SqlParser.AddBetweenCondition((BooleanTernaryExpression)querySpec.WhereClause.SearchCondition, tableList);
 					}
 				}
 
@@ -148,7 +157,7 @@ namespace DataGenerator
 				// Chi lay ra dieu kien so sanh column
 				if (expression.SecondExpression is BooleanComparisonExpression)
 				{
-					SqlParser.AddComparisonExpression((BooleanComparisonExpression)expression.SecondExpression, tableList);
+					SqlParser.AddComparisonCondition((BooleanComparisonExpression)expression.SecondExpression, tableList);
 				}
 				
 				if (expression.SecondExpression is InPredicate)
@@ -161,12 +170,22 @@ namespace DataGenerator
 
 			if (expression.FirstExpression is BooleanComparisonExpression)
 			{
-				SqlParser.AddComparisonExpression((BooleanComparisonExpression)expression.FirstExpression, tableList);
+				SqlParser.AddComparisonCondition((BooleanComparisonExpression)expression.FirstExpression, tableList);
 			}
 
 			if (expression.SecondExpression is BooleanComparisonExpression)
 			{
-				SqlParser.AddComparisonExpression((BooleanComparisonExpression)expression.SecondExpression, tableList);
+				SqlParser.AddComparisonCondition((BooleanComparisonExpression)expression.SecondExpression, tableList);
+			}
+
+			if (expression.FirstExpression is BooleanTernaryExpression)
+			{
+				SqlParser.AddBetweenCondition((BooleanTernaryExpression)expression.FirstExpression, tableList);
+			}
+
+			if (expression.SecondExpression is BooleanTernaryExpression)
+			{
+				SqlParser.AddBetweenCondition((BooleanTernaryExpression)expression.SecondExpression, tableList);
 			}
 		}
 
@@ -190,11 +209,45 @@ namespace DataGenerator
 			targetTable.Conditions.Add(condition);
 		}
 
-		private static void AddComparisonExpression(BooleanComparisonExpression compareExpression, List<Table> tableList)
+		private static void AddBetweenCondition(BooleanTernaryExpression expression, List<Table> tableList)
+		{
+			if (expression.FirstExpression is ColumnReferenceExpression &&
+								  expression.SecondExpression is Literal &&
+								  expression.ThirdExpression is Literal)
+			{
+				// 1 cai la Reference, 1 cai la value => Dieu kien
+				ColumnReferenceExpression joinLeft = (ColumnReferenceExpression)expression.FirstExpression;
+				Literal value = (Literal)expression.SecondExpression;
+				Literal value2 = (Literal)expression.ThirdExpression;
+
+				// Lay ra table name cua dieu kien tu Identifier cua Reference
+				string colName = joinLeft.MultiPartIdentifier.Identifiers[joinLeft.MultiPartIdentifier.Identifiers.Count - 1].Value; ;
+
+				// Tim ra table tuong ung
+				Table targetTable = SqlParser.GetTableHavingColumn(colName, joinLeft, tableList);
+
+				if (targetTable != null)
+				{
+					Condition condition = new Condition()
+					{
+						Table = targetTable,
+						Column = colName,
+						Value = value.Value,
+						Value2 = value2.Value,
+						Operator = SqlParser.GetOperator(expression.TernaryExpressionType),
+					};
+
+					targetTable.Conditions.Add(condition);
+				}
+			}
+		}
+
+		private static void AddComparisonCondition(BooleanComparisonExpression compareExpression, List<Table> tableList)
 		{
 			if (compareExpression.FirstExpression is ColumnReferenceExpression
 				&& compareExpression.SecondExpression is ColumnReferenceExpression)
 			{
+				// Ca 2 deu la reference => Dieu kien join
 				ColumnReferenceExpression joinLeft = (ColumnReferenceExpression)compareExpression.FirstExpression;
 				ColumnReferenceExpression joinRight = (ColumnReferenceExpression)compareExpression.SecondExpression;
 
@@ -204,7 +257,7 @@ namespace DataGenerator
 					Column1 = joinLeft.MultiPartIdentifier.Identifiers[1].Value,
 					Table2 = tableList.First(tbl => tbl.Alias == joinRight.MultiPartIdentifier.Identifiers[0].Value),
 					Column2 = joinRight.MultiPartIdentifier.Identifiers[1].Value,
-					Operator = GetOperator(compareExpression.ComparisonType),
+					Operator = SqlParser.GetOperator(compareExpression.ComparisonType),
 				};
 
 				tableList.First(tbl => tbl.Alias == joinLeft.MultiPartIdentifier.Identifiers[0].Value).Joins.Add(join);
@@ -212,11 +265,14 @@ namespace DataGenerator
 			else if (compareExpression.FirstExpression is ColumnReferenceExpression
 				&& compareExpression.SecondExpression is Literal)
 			{
+				// 1 cai la Reference, 1 cai la value => Dieu kien
 				ColumnReferenceExpression joinLeft = (ColumnReferenceExpression)compareExpression.FirstExpression;
 				Literal stringValue = (Literal)compareExpression.SecondExpression;
 
-				// Lay ra table cua dieu kien
+				// Lay ra table name cua dieu kien tu Identifier cua Reference
 				string colName = joinLeft.MultiPartIdentifier.Identifiers[joinLeft.MultiPartIdentifier.Identifiers.Count - 1].Value; ;
+
+				// Tim ra table tuong ung
 				Table targetTable = SqlParser.GetTableHavingColumn(colName, joinLeft, tableList);
 
 				if (targetTable != null)
@@ -226,7 +282,7 @@ namespace DataGenerator
 						Table = targetTable,
 						Column = colName,
 						Value = stringValue.Value,
-						Operator = GetOperator(compareExpression.ComparisonType),
+						Operator = SqlParser.GetOperator(compareExpression.ComparisonType),
 					};
 
 					targetTable.Conditions.Add(condition);
@@ -304,6 +360,19 @@ namespace DataGenerator
 				case BooleanComparisonType.NotEqualToBrackets:
 				case BooleanComparisonType.NotEqualToExclamation:
 					return Operators.NotEqual;
+				default:
+					throw new InvalidOperationException("OPERATOR!!");
+			}
+		}
+
+		private static Operators GetOperator(BooleanTernaryExpressionType ternaryExpressionType)
+		{
+			switch (ternaryExpressionType)
+			{
+				case BooleanTernaryExpressionType.Between:
+					return Operators.Between;
+				case BooleanTernaryExpressionType.NotBetween:
+					return Operators.NotBetween;
 				default:
 					throw new InvalidOperationException("OPERATOR!!");
 			}
