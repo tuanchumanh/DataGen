@@ -172,6 +172,7 @@ namespace DataGenerator
 		public string Name { get; set; }
 		public List<Join> Joins { get; set; }
 		public List<Condition> Conditions { get; set; }
+		public string SubqueryAlias { get; set; }
 		private List<string> keys = new List<string>();
 
 		public override string ToString()
@@ -187,6 +188,11 @@ namespace DataGenerator
 		public string Column1 { get; set; }
 		public string Column2 { get; set; }
 		public Operators Operator { get; set; }
+
+		public override string ToString()
+		{
+			return string.Format("{0}.{1} {2} {3}.{4}", Table1, Column1, Mapping.GetOperatorForQuery(Operator), Table2, Column2);
+		}
 	}
 
 	public class Condition
@@ -196,6 +202,11 @@ namespace DataGenerator
 		public object Value { get; set; }
 		public object Value2 { get; set; }
 		public Operators Operator { get; set; }
+
+		public override string ToString()
+		{
+			return string.Format("{0}.{1} {2} {3} {4}", Table, Column, Mapping.GetOperatorForQuery(Operator), Value, Value2);
+		}
 	}
 
 	public interface InValues

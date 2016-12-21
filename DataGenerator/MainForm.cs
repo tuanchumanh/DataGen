@@ -64,57 +64,51 @@ namespace DataGenerator
 			// Base tren bang dau tien
 			if (!DataExists(this.setting.Tables[0], true))
 			{
-				// Truong hop khong tim thay data, tao data cho tat ca cac bang
+				// Truong hop khong tim thay data bang dau tien, tao data cho tat ca cac bang
 				foreach (Table table in this.setting.Tables)
 				{
 					DataTable dummyData = CreateData(table);
 					this.tempData[table.Alias] = dummyData;
 				}
-
-				// Set gia tri cac dieu kien join cho khop voi this.setting
-				// TODO: Hoan thien
-				foreach (Join join in this.setting.Tables.SelectMany(tbl => tbl.Joins))
-				{
-					// Khi operator la "Equals"「＝」
-					this.tempData[join.Table2.Alias].Rows[0][join.Column2] = this.tempData[join.Table1.Alias].Rows[0][join.Column1];
-
-					// TODO: Operator
-				}
 			}
 			else
 			{
-				// Tim thay data bang dau tien
-				this.tempData.Add(this.setting.Tables[0].Alias, GetData(this.setting.Tables[0]));
-
-				// Join thu, lay ra cac bang khong join duoc theo dieu kien da chi dinh
-				List<Join> failedJoins = CheckJoinsForTable(this.setting.Tables[0]);
-				if (failedJoins.Count > 0)
+				foreach (Table table in this.setting.Tables)
 				{
-					// Tao data cho cac bang khong join duoc
-					DataSet dummyDataSet = CreateDummyData(failedJoins);
-					foreach (DataTable table in dummyDataSet.Tables)
+					// Join thu, lay ra cac bang khong join duoc theo dieu kien da chi dinh
+					List<Join> failedJoins = CheckJoinsForTable(table);
+					if (failedJoins.Count > 0)
 					{
-						this.tempData[table.TableName] = table;
+						// Tao data cho cac bang khong join duoc
+						DataSet dummyDataSet = CreateDummyData(failedJoins);
+						foreach (DataTable dataTable in dummyDataSet.Tables)
+						{
+							this.tempData[dataTable.TableName] = dataTable;
+						}
 					}
 
-					// Set gia tri cac dieu kien join cho khop voi this.setting
-					foreach (Join join in this.setting.Tables.SelectMany(tbl => tbl.Joins))
-					{
-						// Khi operator la "Equals"「＝」
-						this.tempData[join.Table2.Alias].Rows[0][join.Column2] = this.tempData[join.Table1.Alias].Rows[0][join.Column1];
-
-						// TODO: Operator
-					}
+					DataTable existingData = GetData(table);
+					this.tempData[table.Alias] = existingData;
 				}
-				else
+			}
+
+			// Set gia tri cac dieu kien join cho khop voi this.setting
+			// TODO: Moi chi set 1 huong
+			foreach (Join join in this.setting.Tables.SelectMany(tbl => tbl.Joins))
+			{
+				// Khi operator la "Equals"「＝」
+				this.tempData[join.Table2.Alias].Rows[0][join.Column2] = this.tempData[join.Table1.Alias].Rows[0][join.Column1];
+
+				Condition condition = this.setting.Tables
+					.SelectMany(tbl => tbl.Conditions)
+					.FirstOrDefault(cond => cond.Table == join.Table2 && string.Compare(cond.Column, join.Column2, true) == 0);
+				if (condition != null)
 				{
-					// Neu da ton tai data khi join, set lai dieu kien where
-					foreach (Table table in this.setting.Tables)
-					{
-						DataTable existingData = GetData(table);
-						this.tempData[table.Alias] = existingData;
-					}
+					this.tempData[join.Table2.Alias].Rows[0][join.Column2] = condition.Value;
+					this.tempData[join.Table1.Alias].Rows[0][join.Column1] = condition.Value;
 				}
+
+				// TODO: Other Operators
 			}
 
 			previewGrid.DataSource = this.tempData[this.setting.Tables[0].Alias];

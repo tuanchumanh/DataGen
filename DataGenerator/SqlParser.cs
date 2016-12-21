@@ -52,7 +52,7 @@ namespace DataGenerator
 
 					// Table list
 					List<Table> tableList = new List<Table>();
-					SqlParser.GetTableListFromQuerySpec(querySpec, tableList);
+					SqlParser.GetTableListFromQuerySpec(querySpec, tableList, string.Empty);
 					SqlParser.GetWhereConditionsForQuerySpec(querySpec, tableList);
 
 					// Duplicate alias
@@ -77,7 +77,7 @@ namespace DataGenerator
 			this.Errors = errors;
 		}
 
-		private static void GetTableListFromQuerySpec(QuerySpecification querySpec, List<Table> tableList)
+		private static void GetTableListFromQuerySpec(QuerySpecification querySpec, List<Table> tableList, string queryAlias)
 		{
 			TableReference tableRef = querySpec.FromClause.TableReferences[0];
 
@@ -93,6 +93,7 @@ namespace DataGenerator
 					Name = namedTableRef.SchemaObject.BaseIdentifier.Value,
 					Conditions = new List<Condition>(),
 					Joins = new List<Join>(),
+					SubqueryAlias = queryAlias,
 				});
 			}
 
@@ -100,7 +101,7 @@ namespace DataGenerator
 			if (tableRef is QualifiedJoin)
 			{
 				QualifiedJoin join = (QualifiedJoin)tableRef;
-				SqlParser.GetTable(join, tableList);
+				SqlParser.GetTable(join, tableList, queryAlias);
 
 				// Lay ra chi tiet noi dung join
 				SqlParser.GetJoins(join, tableList);
@@ -226,7 +227,7 @@ namespace DataGenerator
 			{
 				QuerySpecification querySpec = (QuerySpecification)inPredicate.Subquery.QueryExpression;
 				List<Table> subQueryTableList = new List<Table>();
-				SqlParser.GetTableListFromQuerySpec(querySpec, subQueryTableList);
+				SqlParser.GetTableListFromQuerySpec(querySpec, subQueryTableList, string.Empty);
 
 				// Get ra column select cua subquery
 				IList<SelectElement> selectElements = querySpec.SelectElements;
@@ -246,7 +247,7 @@ namespace DataGenerator
 							{
 								// Tim thay table => coi dieu kien IN nhu la 1 dieu kien join
 								// Add them bang vao
-								SqlParser.GetTableListFromQuerySpec(querySpec, tableList);
+								SqlParser.GetTableListFromQuerySpec(querySpec, tableList, string.Empty);
 
 								// TODO: Where condition
 								Join subQueryJoin = new Join()
@@ -319,11 +320,14 @@ namespace DataGenerator
 				&& compareExpression.SecondExpression is ColumnReferenceExpression)
 			{
 				// Ca 2 deu la reference => Dieu kien join
-				ColumnReferenceExpression joinLeft = (ColumnReferenceExpression)compareExpression.FirstExpression;
-				ColumnReferenceExpression joinRight = (ColumnReferenceExpression)compareExpression.SecondExpression;
+				ColumnReferenceExpression join1 = (ColumnReferenceExpression)compareExpression.FirstExpression;
+				ColumnReferenceExpression join2 = (ColumnReferenceExpression)compareExpression.SecondExpression;
 
-				string table1Alias = joinLeft.MultiPartIdentifier.Identifiers[0].Value;
-				string table2Alias = joinRight.MultiPartIdentifier.Identifiers[0].Value;
+				string table1Alias = join1.MultiPartIdentifier.Identifiers[0].Value;
+				string table2Alias = join2.MultiPartIdentifier.Identifiers[0].Value;
+
+				string columnName1 = join1.MultiPartIdentifier.Identifiers[1].Value;
+				string columnName2 = join2.MultiPartIdentifier.Identifiers[1].Value;
 
 				Table table1 = tableList.FirstOrDefault(tbl => tbl.Alias == table1Alias);
 				Table table2 = tableList.FirstOrDefault(tbl => tbl.Alias == table2Alias);
@@ -333,17 +337,53 @@ namespace DataGenerator
 					Join join = new Join()
 					{
 						Table1 = table1,
-						Column1 = joinLeft.MultiPartIdentifier.Identifiers[1].Value,
+						Column1 = columnName1,
 						Table2 = table2,
-						Column2 = joinRight.MultiPartIdentifier.Identifiers[1].Value,
+						Column2 = columnName2,
 						Operator = SqlParser.GetOperator(compareExpression.ComparisonType),
 					};
 
-					tableList.First(tbl => tbl.Alias == table1Alias).Joins.Add(join);
+					table1.Joins.Add(join);
 				}
-				else
+				else if (table1 != null)
 				{
 					// TODO Khong tim thay bang => Subquery
+					// Lay ra danh sach bang trong subquery
+					List<Table> subQueryTableList = tableList
+						.Where(tbl => tbl.SubqueryAlias.Contains(table2Alias))
+						.ToList();
+
+					Table targetTable = SqlParser.GetTableHavingColumn(columnName2, subQueryTableList);
+
+					Join join = new Join()
+					{
+						Table1 = table1,
+						Column1 = columnName1,
+						Table2 = targetTable,
+						Column2 = columnName2,
+						Operator = SqlParser.GetOperator(compareExpression.ComparisonType),
+					};
+
+					table1.Joins.Add(join);
+				}
+				else if (table2 != null)
+				{
+					List<Table> subQueryTableList = tableList
+						.Where(tbl => tbl.SubqueryAlias.Contains(table1Alias))
+						.ToList();
+
+					Table targetTable = SqlParser.GetTableHavingColumn(columnName1, subQueryTableList);
+
+					Join join = new Join()
+					{
+						Table1 = table2,
+						Column1 = columnName2,
+						Table2 = targetTable,
+						Column2 = columnName1,
+						Operator = SqlParser.GetOperator(compareExpression.ComparisonType),
+					};
+
+					table2.Joins.Add(join);
 				}
 			}
 			else if (compareExpression.FirstExpression is ColumnReferenceExpression
@@ -378,17 +418,17 @@ namespace DataGenerator
 		/// Tim xem column thuoc table nao va return table
 		/// </summary>
 		/// <param name="colName"></param>
-		/// <param name="joinLeft"></param>
+		/// <param name="colRef"></param>
 		/// <param name="tableList"></param>
 		/// <returns></returns>
-		private static Table GetTableHavingColumn(string colName, ColumnReferenceExpression joinLeft, List<Table> tableList)
+		private static Table GetTableHavingColumn(string colName, ColumnReferenceExpression colRef, List<Table> tableList)
 		{
 			Table targetTable = null;
-			if (joinLeft.MultiPartIdentifier.Count == 2)
+			if (colRef.MultiPartIdentifier.Count == 2)
 			{
-				targetTable = tableList.FirstOrDefault(tbl => tbl.Alias == joinLeft.MultiPartIdentifier.Identifiers[0].Value);
+				targetTable = tableList.FirstOrDefault(tbl => tbl.Alias == colRef.MultiPartIdentifier.Identifiers[0].Value);
 			}
-			else if (joinLeft.MultiPartIdentifier.Count == 1)
+			else if (colRef.MultiPartIdentifier.Count == 1)
 			{
 				if (tableList.Count == 1)
 				{
@@ -396,31 +436,39 @@ namespace DataGenerator
 				}
 				else if (tableList.Count > 1)
 				{
-					foreach (Table table in tableList)
+					SqlParser.GetTableHavingColumn(colName, tableList);
+				}
+			}
+
+			return targetTable;
+		}
+
+		private static Table GetTableHavingColumn(string colName, List<Table> tableList)
+		{
+			Table targetTable = null;
+			foreach (Table table in tableList)
+			{
+				using (SqlConnection conn = new SqlConnection(ConfigurationManager.ConnectionStrings["NULDEMOConnectionString"].ToString()))
+				using (SqlCommand cmd = new SqlCommand())
+				{
+					// Get schema
+					cmd.CommandText = string.Format("SELECT * FROM {0}", table.Name);
+					cmd.CommandType = CommandType.Text;
+					cmd.Connection = conn;
+
+					conn.Open();
+					DataTable schemaTable;
+					using (SqlDataReader reader = cmd.ExecuteReader(CommandBehavior.KeyInfo))
 					{
-						using (SqlConnection conn = new SqlConnection(ConfigurationManager.ConnectionStrings["NULDEMOConnectionString"].ToString()))
-						using (SqlCommand cmd = new SqlCommand())
-						{
-							// Get schema
-							cmd.CommandText = string.Format("SELECT * FROM {0}", table.Name);
-							cmd.CommandType = CommandType.Text;
-							cmd.Connection = conn;
+						schemaTable = reader.GetSchemaTable();
+					}
 
-							conn.Open();
-							DataTable schemaTable;
-							using (SqlDataReader reader = cmd.ExecuteReader(CommandBehavior.KeyInfo))
-							{
-								schemaTable = reader.GetSchemaTable();
-							}
-
-							DataRow colSpec = schemaTable.Rows.Cast<DataRow>().Where(col =>
-								colName.Equals(col["ColumnName"] as string, StringComparison.OrdinalIgnoreCase)).FirstOrDefault();
-							if (colSpec != null)
-							{
-								targetTable = table;
-								break;
-							}
-						}
+					DataRow colSpec = schemaTable.Rows.Cast<DataRow>().Where(col =>
+						colName.Equals(col["ColumnName"] as string, StringComparison.OrdinalIgnoreCase)).FirstOrDefault();
+					if (colSpec != null)
+					{
+						targetTable = table;
+						break;
 					}
 				}
 			}
@@ -468,11 +516,11 @@ namespace DataGenerator
 		/// </summary>
 		/// <param name="join"></param>
 		/// <param name="tableList"></param>
-		private static void GetTable(QualifiedJoin join, List<Table> tableList)
+		private static void GetTable(QualifiedJoin join, List<Table> tableList, string queryAlias)
 		{
 			if (join.FirstTableReference is QualifiedJoin)
 			{
-				SqlParser.GetTable((QualifiedJoin)join.FirstTableReference, tableList);
+				SqlParser.GetTable((QualifiedJoin)join.FirstTableReference, tableList, queryAlias);
 			}
 
 			if (join.FirstTableReference is NamedTableReference)
@@ -485,6 +533,7 @@ namespace DataGenerator
 					Name = namedTableRef.SchemaObject.BaseIdentifier.Value,
 					Joins = new List<Join>(),
 					Conditions = new List<Condition>(),
+					SubqueryAlias = queryAlias,
 				});
 			}
 
@@ -498,25 +547,28 @@ namespace DataGenerator
 					Name = namedTableRef2.SchemaObject.BaseIdentifier.Value,
 					Joins = new List<Join>(),
 					Conditions = new List<Condition>(),
+					SubqueryAlias = queryAlias,
 				});
 			}
 
 			// TODO: Subquery
 			if (join.FirstTableReference is QueryDerivedTable)
 			{
-				SqlParser.GetTableFromSubquery((QueryDerivedTable)join.FirstTableReference, tableList);
+				SqlParser.GetTableFromSubquery((QueryDerivedTable)join.FirstTableReference, tableList, queryAlias);
 			}
 
 			if (join.SecondTableReference is QueryDerivedTable)
 			{
-				SqlParser.GetTableFromSubquery((QueryDerivedTable)join.SecondTableReference, tableList);
+				SqlParser.GetTableFromSubquery((QueryDerivedTable)join.SecondTableReference, tableList, queryAlias);
 			}
 		}
 
-		private static void GetTableFromSubquery(QueryDerivedTable subQuery, List<Table> tableList)
+		private static void GetTableFromSubquery(QueryDerivedTable subQuery, List<Table> tableList, string queryAlias)
 		{
+			// Alias;#ParentAlias;#GrandparentAlias
+			string subqueryAlias = string.Format("{0};#{1}", subQuery.Alias.Value, queryAlias);
 			QuerySpecification querySpec = (QuerySpecification)subQuery.QueryExpression;
-			SqlParser.GetTableListFromQuerySpec(querySpec, tableList);
+			SqlParser.GetTableListFromQuerySpec(querySpec, tableList, subqueryAlias);
 			SqlParser.GetWhereConditionsForQuerySpec(querySpec, tableList);
 		}
 	}
