@@ -49,7 +49,10 @@ namespace DataGenerator
 			if (this.setting.Parser.Errors.Count > 0)
 			{
 				this.lblStatus.Text = "Parse error.";
-				MessageBox.Show(string.Join(Environment.NewLine, this.setting.Parser.Errors.Select(err => err.Message)), "Parse error");
+				MessageBox.Show(string.Join(
+					Environment.NewLine,
+					this.setting.Parser.Errors.Select(err => string.Format("Line {0}, Column {1}: {2}", err.Line, err.Column, err.Message))),
+					"Parse error");
 
 				return;
 			}
@@ -87,8 +90,11 @@ namespace DataGenerator
 						}
 					}
 
-					DataTable existingData = GetData(table);
-					this.tempData[table.Alias] = existingData;
+					if (!this.tempData.ContainsKey(table.Alias) && DataExists(table, true))
+					{
+						DataTable existingData = GetData(table);
+						this.tempData[table.Alias] = existingData;
+					}
 				}
 			}
 

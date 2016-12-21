@@ -95,8 +95,7 @@ namespace DataGenerator
 				}
 				else if (statement is UseStatement == false && statement is PredicateSetStatement == false)
 				{
-					ParseError error = new ParseError(0, statement.StartColumn, statement.StartOffset, statement.StartLine, 
-						string.Format("Line {0}, Column {0}: Not a select statement.", statement.StartLine, statement.StartColumn));
+					ParseError error = new ParseError(0, statement.StartColumn, statement.StartOffset, statement.StartLine, "Not a select statement.");
 					errors.Add(error);
 				}
 			}
@@ -186,6 +185,9 @@ namespace DataGenerator
 			{
 				SqlParser.GetJoinConditions((BooleanBinaryExpression)expression, tableList);
 			}
+
+			// TODO Subquery join conditions
+			SqlParser.AddJoinCondition(expression, tableList);
 		}
 
 		private static void GetJoinConditions(BooleanBinaryExpression expression, List<Table> tableList)
@@ -209,26 +211,22 @@ namespace DataGenerator
 				}
 			}
 
-			// Dieu kien so sanh
-			if (expression.FirstExpression is BooleanComparisonExpression)
-			{
-				SqlParser.AddComparisonCondition((BooleanComparisonExpression)expression.FirstExpression, tableList);
-			}
+			SqlParser.AddJoinCondition(expression.FirstExpression, tableList);
+			SqlParser.AddJoinCondition(expression.SecondExpression, tableList);
+		}
 
-			if (expression.SecondExpression is BooleanComparisonExpression)
+		private static void AddJoinCondition(BooleanExpression expression, List<Table> tableList)
+		{
+			// Dieu kien so sanh
+			if (expression is BooleanComparisonExpression)
 			{
-				SqlParser.AddComparisonCondition((BooleanComparisonExpression)expression.SecondExpression, tableList);
+				SqlParser.AddComparisonCondition((BooleanComparisonExpression)expression, tableList);
 			}
 
 			// Dieu kien IN
-			if (expression.FirstExpression is BooleanTernaryExpression)
+			if (expression is BooleanTernaryExpression)
 			{
-				SqlParser.AddBetweenCondition((BooleanTernaryExpression)expression.FirstExpression, tableList);
-			}
-
-			if (expression.SecondExpression is BooleanTernaryExpression)
-			{
-				SqlParser.AddBetweenCondition((BooleanTernaryExpression)expression.SecondExpression, tableList);
+				SqlParser.AddBetweenCondition((BooleanTernaryExpression)expression, tableList);
 			}
 		}
 
