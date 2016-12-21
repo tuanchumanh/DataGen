@@ -43,60 +43,35 @@ namespace DataGenerator
 				return;
 			}
 
-			TSqlStatement statement = script.Batches[0].Statements[0];
-			if (statement is SelectStatement)
+			foreach (TSqlStatement statement in script.Batches.SelectMany(batch => batch.Statements))
 			{
-				SelectStatement selectQuery = (SelectStatement)statement;
-				QuerySpecification querySpec = (QuerySpecification)selectQuery.QueryExpression;
-
-				// Table list
-				List<Table> tableList = new List<Table>();
-				SqlParser.GetTableListFromQuerySpec(querySpec, tableList);
-
-				// Lay ra dieu kien WHERE
-				if (querySpec.WhereClause != null)
+				if (statement is SelectStatement)
 				{
-					// Co JOIN
-					if (querySpec.WhereClause.SearchCondition is BooleanBinaryExpression)
+					SelectStatement selectQuery = (SelectStatement)statement;
+					QuerySpecification querySpec = (QuerySpecification)selectQuery.QueryExpression;
+
+					// Table list
+					List<Table> tableList = new List<Table>();
+					SqlParser.GetTableListFromQuerySpec(querySpec, tableList);
+					SqlParser.GetWhereConditionsForQuerySpec(querySpec, tableList);
+
+					// Duplicate alias
+					foreach (Table table in tableList)
 					{
-						SqlParser.GetJoinConditions((BooleanBinaryExpression)querySpec.WhereClause.SearchCondition, tableList);
+						if (tableList.Where(tbl => tbl != table).Any(tbl => tbl.Alias == table.Alias))
+						{
+							ParseError error = new ParseError(0, 0, 0, 0, string.Format("Duplicate alias: {0} {1}", table.Alias, table.Name));
+							errors.Add(error);
+						}
 					}
 
-					// Dieu kien WHERE so sanh
-					if (querySpec.WhereClause.SearchCondition is BooleanComparisonExpression)
-					{
-						SqlParser.AddComparisonCondition((BooleanComparisonExpression)querySpec.WhereClause.SearchCondition, tableList);
-					}
-
-					// Dieu kien WHERE la IN
-					if (querySpec.WhereClause.SearchCondition is InPredicate)
-					{
-						SqlParser.AddInPredicateCondition((InPredicate)querySpec.WhereClause.SearchCondition, tableList);
-					}
-
-					// Dieu kien WHERE la BETWEEN
-					if (querySpec.WhereClause.SearchCondition is BooleanTernaryExpression)
-					{
-						SqlParser.AddBetweenCondition((BooleanTernaryExpression)querySpec.WhereClause.SearchCondition, tableList);
-					}
+					this.settings = tableList;
 				}
-
-				// Duplicate alias
-				foreach (Table table in tableList)
+				else
 				{
-					if (tableList.Where(tbl => tbl != table).Any(tbl => tbl.Alias == table.Alias))
-					{
-						ParseError error = new ParseError(0, 0, 0, 0, string.Format("Duplicate alias: {0} {1}", table.Alias, table.Name));
-						errors.Add(error);
-					}
+					ParseError error = new ParseError(0, 0, 0, 0, "Not a select statement.");
+					errors.Add(error);
 				}
-
-				this.settings = tableList;
-			}
-			else
-			{
-				ParseError error = new ParseError(0, 0, 0, 0, "Not a select statement.");
-				errors.Add(error);
 			}
 
 			this.Errors = errors;
@@ -132,6 +107,37 @@ namespace DataGenerator
 			}
 		}
 
+		private static void GetWhereConditionsForQuerySpec(QuerySpecification querySpec, List<Table> tableList)
+		{
+			// Lay ra dieu kien WHERE
+			if (querySpec.WhereClause != null)
+			{
+				// Co JOIN
+				if (querySpec.WhereClause.SearchCondition is BooleanBinaryExpression)
+				{
+					SqlParser.GetJoinConditions((BooleanBinaryExpression)querySpec.WhereClause.SearchCondition, tableList);
+				}
+
+				// Dieu kien WHERE so sanh
+				if (querySpec.WhereClause.SearchCondition is BooleanComparisonExpression)
+				{
+					SqlParser.AddComparisonCondition((BooleanComparisonExpression)querySpec.WhereClause.SearchCondition, tableList);
+				}
+
+				// Dieu kien WHERE la IN
+				if (querySpec.WhereClause.SearchCondition is InPredicate)
+				{
+					SqlParser.AddInPredicateCondition((InPredicate)querySpec.WhereClause.SearchCondition, tableList);
+				}
+
+				// Dieu kien WHERE la BETWEEN
+				if (querySpec.WhereClause.SearchCondition is BooleanTernaryExpression)
+				{
+					SqlParser.AddBetweenCondition((BooleanTernaryExpression)querySpec.WhereClause.SearchCondition, tableList);
+				}
+			}
+		}
+
 		private static void GetJoins(QualifiedJoin joinExpression, List<Table> tableList)
 		{
 			// Recursive de lay ra tat ca cac join
@@ -150,6 +156,7 @@ namespace DataGenerator
 
 		private static void GetJoinConditions(BooleanBinaryExpression expression, List<Table> tableList)
 		{
+			// Dieu kien ghep => recursive de lay ra het
 			if (expression.FirstExpression is BooleanBinaryExpression)
 			{
 				SqlParser.GetJoinConditions((BooleanBinaryExpression)expression.FirstExpression, tableList);
@@ -168,6 +175,7 @@ namespace DataGenerator
 				}
 			}
 
+			// Dieu kien so sanh
 			if (expression.FirstExpression is BooleanComparisonExpression)
 			{
 				SqlParser.AddComparisonCondition((BooleanComparisonExpression)expression.FirstExpression, tableList);
@@ -178,6 +186,7 @@ namespace DataGenerator
 				SqlParser.AddComparisonCondition((BooleanComparisonExpression)expression.SecondExpression, tableList);
 			}
 
+			// Dieu kien IN
 			if (expression.FirstExpression is BooleanTernaryExpression)
 			{
 				SqlParser.AddBetweenCondition((BooleanTernaryExpression)expression.FirstExpression, tableList);
@@ -238,6 +247,8 @@ namespace DataGenerator
 								// Tim thay table => coi dieu kien IN nhu la 1 dieu kien join
 								// Add them bang vao
 								SqlParser.GetTableListFromQuerySpec(querySpec, tableList);
+
+								// TODO: Where condition
 								Join subQueryJoin = new Join()
 								{
 									Table1 = targetTable,
@@ -311,16 +322,29 @@ namespace DataGenerator
 				ColumnReferenceExpression joinLeft = (ColumnReferenceExpression)compareExpression.FirstExpression;
 				ColumnReferenceExpression joinRight = (ColumnReferenceExpression)compareExpression.SecondExpression;
 
-				Join join = new Join()
-				{
-					Table1 = tableList.First(tbl => tbl.Alias == joinLeft.MultiPartIdentifier.Identifiers[0].Value),
-					Column1 = joinLeft.MultiPartIdentifier.Identifiers[1].Value,
-					Table2 = tableList.First(tbl => tbl.Alias == joinRight.MultiPartIdentifier.Identifiers[0].Value),
-					Column2 = joinRight.MultiPartIdentifier.Identifiers[1].Value,
-					Operator = SqlParser.GetOperator(compareExpression.ComparisonType),
-				};
+				string table1Alias = joinLeft.MultiPartIdentifier.Identifiers[0].Value;
+				string table2Alias = joinRight.MultiPartIdentifier.Identifiers[0].Value;
 
-				tableList.First(tbl => tbl.Alias == joinLeft.MultiPartIdentifier.Identifiers[0].Value).Joins.Add(join);
+				Table table1 = tableList.FirstOrDefault(tbl => tbl.Alias == table1Alias);
+				Table table2 = tableList.FirstOrDefault(tbl => tbl.Alias == table2Alias);
+
+				if (table1 != null && table2 != null)
+				{
+					Join join = new Join()
+					{
+						Table1 = table1,
+						Column1 = joinLeft.MultiPartIdentifier.Identifiers[1].Value,
+						Table2 = table2,
+						Column2 = joinRight.MultiPartIdentifier.Identifiers[1].Value,
+						Operator = SqlParser.GetOperator(compareExpression.ComparisonType),
+					};
+
+					tableList.First(tbl => tbl.Alias == table1Alias).Joins.Add(join);
+				}
+				else
+				{
+					// TODO Khong tim thay bang => Subquery
+				}
 			}
 			else if (compareExpression.FirstExpression is ColumnReferenceExpression
 				&& compareExpression.SecondExpression is Literal)
@@ -362,7 +386,7 @@ namespace DataGenerator
 			Table targetTable = null;
 			if (joinLeft.MultiPartIdentifier.Count == 2)
 			{
-				targetTable = tableList.First(tbl => tbl.Alias == joinLeft.MultiPartIdentifier.Identifiers[0].Value);
+				targetTable = tableList.FirstOrDefault(tbl => tbl.Alias == joinLeft.MultiPartIdentifier.Identifiers[0].Value);
 			}
 			else if (joinLeft.MultiPartIdentifier.Count == 1)
 			{
@@ -400,6 +424,7 @@ namespace DataGenerator
 					}
 				}
 			}
+
 			return targetTable;
 		}
 
