@@ -20,7 +20,7 @@ namespace DataGenerator
 					return RandomDateString();
 				}
 
-				return RandomString(length);
+				return RandomString(length, columnName);
 			}
 
 			if (type == typeof(Decimal))
@@ -51,11 +51,25 @@ namespace DataGenerator
 			return null;
 		}
 
+		public static string RandomString(int length, string columnName)
+		{
+			if (columnName.Length >= length)
+			{
+				return RandomString(length);
+			}
+			else
+			{
+				int randomStringLength = length - columnName.Length;
+				string randomNum = random.Next(IntPow(10, randomStringLength) - 1).ToString().PadLeft(randomStringLength, '0');
+				return string.Format("{0}{1}", columnName, RandomString(randomStringLength));
+			}
+		}
+
 		public static string RandomString(int length)
 		{
 			const string chars = @"ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
 			return new string(Enumerable.Repeat(chars, length)
-				.Select(s => s[random.Next(s.Length)]).ToArray());
+					.Select(s => s[random.Next(s.Length)]).ToArray());
 		}
 
 		public static DateTime RandomDate()
