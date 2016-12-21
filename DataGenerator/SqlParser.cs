@@ -513,10 +513,11 @@ namespace DataGenerator
 			}
 		}
 
-		private static void GetTableFromSubquery(QueryDerivedTable table, List<Table> tableList)
+		private static void GetTableFromSubquery(QueryDerivedTable subQuery, List<Table> tableList)
 		{
-			QuerySpecification querySpec = (QuerySpecification)table.QueryExpression;
+			QuerySpecification querySpec = (QuerySpecification)subQuery.QueryExpression;
 			SqlParser.GetTableListFromQuerySpec(querySpec, tableList);
+			SqlParser.GetWhereConditionsForQuerySpec(querySpec, tableList);
 		}
 	}
 }

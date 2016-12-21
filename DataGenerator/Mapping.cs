@@ -173,6 +173,11 @@ namespace DataGenerator
 		public List<Join> Joins { get; set; }
 		public List<Condition> Conditions { get; set; }
 		private List<string> keys = new List<string>();
+
+		public override string ToString()
+		{
+			return string.Format("{0}:{1}", this.Alias, this.Name);
+		}
 	}
 
 	public class Join
