@@ -41,9 +41,9 @@
 			this.menuStrip1 = new System.Windows.Forms.MenuStrip();
 			this.fileToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
 			this.exitToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
-			this.txtQuery = new System.Windows.Forms.RichTextBox();
 			this.utilitiesToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
 			this.formatQueryToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+			this.txtQuery = new System.Windows.Forms.RichTextBox();
 			this.btnClear = new System.Windows.Forms.Button();
 			((System.ComponentModel.ISupportInitialize)(this.previewGrid)).BeginInit();
 			this.menuStrip1.SuspendLayout();
@@ -54,10 +54,9 @@
 			this.previewGrid.Anchor = ((System.Windows.Forms.AnchorStyles)((((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Bottom) 
             | System.Windows.Forms.AnchorStyles.Left) 
             | System.Windows.Forms.AnchorStyles.Right)));
-			this.previewGrid.ClipboardCopyMode = System.Windows.Forms.DataGridViewClipboardCopyMode.EnableAlwaysIncludeHeaderText;
-			this.previewGrid.ColumnHeadersHeightSizeMode = System.Windows.Forms.DataGridViewColumnHeadersHeightSizeMode.AutoSize;
 			this.previewGrid.Location = new System.Drawing.Point(11, 58);
 			this.previewGrid.Name = "previewGrid";
+			this.previewGrid.RowHeadersWidthSizeMode = System.Windows.Forms.DataGridViewRowHeadersWidthSizeMode.AutoSizeToAllHeaders;
 			this.previewGrid.RowTemplate.Height = 21;
 			this.previewGrid.Size = new System.Drawing.Size(912, 131);
 			this.previewGrid.TabIndex = 1;
@@ -171,9 +170,24 @@
 			// exitToolStripMenuItem
 			// 
 			this.exitToolStripMenuItem.Name = "exitToolStripMenuItem";
-			this.exitToolStripMenuItem.Size = new System.Drawing.Size(152, 22);
+			this.exitToolStripMenuItem.Size = new System.Drawing.Size(90, 22);
 			this.exitToolStripMenuItem.Text = "Exit";
 			this.exitToolStripMenuItem.Click += new System.EventHandler(this.exitToolStripMenuItem_Click);
+			// 
+			// utilitiesToolStripMenuItem
+			// 
+			this.utilitiesToolStripMenuItem.DropDownItems.AddRange(new System.Windows.Forms.ToolStripItem[] {
+            this.formatQueryToolStripMenuItem});
+			this.utilitiesToolStripMenuItem.Name = "utilitiesToolStripMenuItem";
+			this.utilitiesToolStripMenuItem.Size = new System.Drawing.Size(57, 20);
+			this.utilitiesToolStripMenuItem.Text = "Utilities";
+			// 
+			// formatQueryToolStripMenuItem
+			// 
+			this.formatQueryToolStripMenuItem.Name = "formatQueryToolStripMenuItem";
+			this.formatQueryToolStripMenuItem.Size = new System.Drawing.Size(138, 22);
+			this.formatQueryToolStripMenuItem.Text = "Format query";
+			this.formatQueryToolStripMenuItem.Click += new System.EventHandler(this.formatQueryToolStripMenuItem_Click);
 			// 
 			// txtQuery
 			// 
@@ -187,21 +201,6 @@
 			this.txtQuery.TabIndex = 9;
 			this.txtQuery.Text = "";
 			this.txtQuery.WordWrap = false;
-			// 
-			// utilitiesToolStripMenuItem
-			// 
-			this.utilitiesToolStripMenuItem.DropDownItems.AddRange(new System.Windows.Forms.ToolStripItem[] {
-            this.formatQueryToolStripMenuItem});
-			this.utilitiesToolStripMenuItem.Name = "utilitiesToolStripMenuItem";
-			this.utilitiesToolStripMenuItem.Size = new System.Drawing.Size(57, 20);
-			this.utilitiesToolStripMenuItem.Text = "Utilities";
-			// 
-			// formatQueryToolStripMenuItem
-			// 
-			this.formatQueryToolStripMenuItem.Name = "formatQueryToolStripMenuItem";
-			this.formatQueryToolStripMenuItem.Size = new System.Drawing.Size(152, 22);
-			this.formatQueryToolStripMenuItem.Text = "Format query";
-			this.formatQueryToolStripMenuItem.Click += new System.EventHandler(this.formatQueryToolStripMenuItem_Click);
 			// 
 			// btnClear
 			// 

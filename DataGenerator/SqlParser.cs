@@ -43,15 +43,16 @@ namespace DataGenerator
 				return;
 			}
 
+			List<Table> tableList = new List<Table>();
 			foreach (TSqlStatement statement in script.Batches.SelectMany(batch => batch.Statements))
 			{
 				if (statement is SelectStatement)
 				{
+					// TODO: Tach method
 					SelectStatement selectQuery = (SelectStatement)statement;
 					QuerySpecification querySpec = (QuerySpecification)selectQuery.QueryExpression;
 
 					// Table list
-					List<Table> tableList = new List<Table>();
 					SqlParser.GetTableListFromQuerySpec(querySpec, tableList, string.Empty);
 					SqlParser.GetWhereConditionsForQuerySpec(querySpec, tableList);
 
@@ -64,21 +65,53 @@ namespace DataGenerator
 							errors.Add(error);
 						}
 					}
-
-					this.settings = tableList;
 				}
-				else
+				else if (statement is CreateProcedureStatement)
 				{
-					ParseError error = new ParseError(0, 0, 0, 0, "Not a select statement.");
+					CreateProcedureStatement createProc = (CreateProcedureStatement)statement;
+					foreach (TSqlStatement createProcStatement in createProc.StatementList.Statements)
+					{
+						if (createProcStatement is SelectStatement)
+						{
+							// TODO: Tach method
+							SelectStatement selectQuery = (SelectStatement)createProcStatement;
+							QuerySpecification querySpec = (QuerySpecification)selectQuery.QueryExpression;
+
+							// Table list
+							SqlParser.GetTableListFromQuerySpec(querySpec, tableList, string.Empty);
+							SqlParser.GetWhereConditionsForQuerySpec(querySpec, tableList);
+
+							// Duplicate alias
+							foreach (Table table in tableList)
+							{
+								if (tableList.Where(tbl => tbl != table).Any(tbl => tbl.Alias == table.Alias))
+								{
+									ParseError error = new ParseError(0, 0, 0, 0, string.Format("Duplicate alias: {0} {1}", table.Alias, table.Name));
+									errors.Add(error);
+								}
+							}
+						}
+					}
+				}
+				else if (statement is UseStatement == false && statement is PredicateSetStatement == false)
+				{
+					ParseError error = new ParseError(0, statement.StartColumn, statement.StartOffset, statement.StartLine, 
+						string.Format("Line {0}, Column {0}: Not a select statement.", statement.StartLine, statement.StartColumn));
 					errors.Add(error);
 				}
 			}
 
+			this.settings = tableList;
 			this.Errors = errors;
 		}
 
 		private static void GetTableListFromQuerySpec(QuerySpecification querySpec, List<Table> tableList, string queryAlias)
 		{
+			if (querySpec.FromClause == null)
+			{
+				return;
+			}
+
 			TableReference tableRef = querySpec.FromClause.TableReferences[0];
 
 			if (tableRef is NamedTableReference)
@@ -347,24 +380,26 @@ namespace DataGenerator
 				}
 				else if (table1 != null)
 				{
-					// TODO Khong tim thay bang => Subquery
+					// Khong tim thay bang => Subquery
 					// Lay ra danh sach bang trong subquery
 					List<Table> subQueryTableList = tableList
 						.Where(tbl => tbl.SubqueryAlias.Contains(table2Alias))
 						.ToList();
 
 					Table targetTable = SqlParser.GetTableHavingColumn(columnName2, subQueryTableList);
-
-					Join join = new Join()
+					if (targetTable != null)
 					{
-						Table1 = table1,
-						Column1 = columnName1,
-						Table2 = targetTable,
-						Column2 = columnName2,
-						Operator = SqlParser.GetOperator(compareExpression.ComparisonType),
-					};
+						Join join = new Join()
+						{
+							Table1 = table1,
+							Column1 = columnName1,
+							Table2 = targetTable,
+							Column2 = columnName2,
+							Operator = SqlParser.GetOperator(compareExpression.ComparisonType),
+						};
 
-					table1.Joins.Add(join);
+						table1.Joins.Add(join);
+					}
 				}
 				else if (table2 != null)
 				{
@@ -373,17 +408,43 @@ namespace DataGenerator
 						.ToList();
 
 					Table targetTable = SqlParser.GetTableHavingColumn(columnName1, subQueryTableList);
-
-					Join join = new Join()
+					if (targetTable != null)
 					{
-						Table1 = table2,
-						Column1 = columnName2,
-						Table2 = targetTable,
-						Column2 = columnName1,
-						Operator = SqlParser.GetOperator(compareExpression.ComparisonType),
-					};
+						Join join = new Join()
+						{
+							Table1 = table2,
+							Column1 = columnName2,
+							Table2 = targetTable,
+							Column2 = columnName1,
+							Operator = SqlParser.GetOperator(compareExpression.ComparisonType),
+						};
 
-					table2.Joins.Add(join);
+						table2.Joins.Add(join);
+					}
+				}
+				else
+				{
+					// Ca 2 ve deu la subquery
+					List<Table> subQueryTableList = tableList
+						.Where(tbl => tbl.SubqueryAlias.Contains(table1Alias) || tbl.SubqueryAlias.Contains(table2Alias))
+						.ToList();
+
+					Table targetTable1 = SqlParser.GetTableHavingColumn(columnName1, subQueryTableList);
+					Table targetTable2 = SqlParser.GetTableHavingColumn(columnName2, subQueryTableList);
+					if (targetTable1 != null && targetTable2 != null)
+					{
+
+						Join join = new Join()
+						{
+							Table1 = targetTable1,
+							Column1 = columnName1,
+							Table2 = targetTable2,
+							Column2 = columnName2,
+							Operator = SqlParser.GetOperator(compareExpression.ComparisonType),
+						};
+
+						targetTable1.Joins.Add(join);
+					}
 				}
 			}
 			else if (compareExpression.FirstExpression is ColumnReferenceExpression

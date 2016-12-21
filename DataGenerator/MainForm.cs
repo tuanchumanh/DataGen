@@ -93,22 +93,31 @@ namespace DataGenerator
 			}
 
 			// Set gia tri cac dieu kien join cho khop voi this.setting
-			// TODO: Moi chi set 1 huong
 			foreach (Join join in this.setting.Tables.SelectMany(tbl => tbl.Joins))
 			{
-				// Khi operator la "Equals"「＝」
-				this.tempData[join.Table2.Alias].Rows[0][join.Column2] = this.tempData[join.Table1.Alias].Rows[0][join.Column1];
-
-				Condition condition = this.setting.Tables
-					.SelectMany(tbl => tbl.Conditions)
-					.FirstOrDefault(cond => cond.Table == join.Table2 && string.Compare(cond.Column, join.Column2, true) == 0);
-				if (condition != null)
+				switch (join.Operator)
 				{
-					this.tempData[join.Table2.Alias].Rows[0][join.Column2] = condition.Value;
-					this.tempData[join.Table1.Alias].Rows[0][join.Column1] = condition.Value;
-				}
+					case Operators.Between:
+					case Operators.Equal:
+					case Operators.GreaterThanOrEqual:
+					case Operators.In: 
+					case Operators.LessThanOrEqual:
+						this.tempData[join.Table2.Alias].Rows[0][join.Column2] = this.tempData[join.Table1.Alias].Rows[0][join.Column1];
 
-				// TODO: Other Operators
+						// Neu co dieu kien WHERE thi set theo dieu kien WHERE
+						Condition condition = this.setting.Tables
+							.SelectMany(tbl => tbl.Conditions)
+							.FirstOrDefault(cond => cond.Table == join.Table2 && string.Compare(cond.Column, join.Column2, true) == 0);
+						if (condition != null)
+						{
+							this.tempData[join.Table2.Alias].Rows[0][join.Column2] = condition.Value;
+							this.tempData[join.Table1.Alias].Rows[0][join.Column1] = condition.Value;
+						}
+						break;
+					// TODO: Other Operators
+					default:
+						break;
+				}
 			}
 
 			previewGrid.DataSource = this.tempData[this.setting.Tables[0].Alias];
