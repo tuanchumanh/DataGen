@@ -35,7 +35,6 @@
 			this.btnInsert = new System.Windows.Forms.Button();
 			this.btnPrevTable = new System.Windows.Forms.Button();
 			this.btnNextTable = new System.Windows.Forms.Button();
-			this.btnReload = new System.Windows.Forms.Button();
 			this.btnParse = new System.Windows.Forms.Button();
 			this.lblStatus = new System.Windows.Forms.Label();
 			this.menuStrip1 = new System.Windows.Forms.MenuStrip();
@@ -114,18 +113,6 @@
 			this.btnNextTable.Text = ">";
 			this.btnNextTable.UseVisualStyleBackColor = true;
 			this.btnNextTable.Click += new System.EventHandler(this.btnNextTable_Click);
-			// 
-			// btnReload
-			// 
-			this.btnReload.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Right)));
-			this.btnReload.Location = new System.Drawing.Point(600, 517);
-			this.btnReload.Name = "btnReload";
-			this.btnReload.Size = new System.Drawing.Size(78, 23);
-			this.btnReload.TabIndex = 4;
-			this.btnReload.Text = "Import Excel";
-			this.btnReload.UseVisualStyleBackColor = true;
-			this.btnReload.Visible = false;
-			this.btnReload.Click += new System.EventHandler(this.btnReload_Click);
 			// 
 			// btnParse
 			// 
@@ -222,7 +209,6 @@
 			this.Controls.Add(this.txtQuery);
 			this.Controls.Add(this.lblStatus);
 			this.Controls.Add(this.btnParse);
-			this.Controls.Add(this.btnReload);
 			this.Controls.Add(this.btnNextTable);
 			this.Controls.Add(this.btnPrevTable);
 			this.Controls.Add(this.tableNamesComboBox);
@@ -250,7 +236,6 @@
 		private System.Windows.Forms.Button btnInsert;
 		private System.Windows.Forms.Button btnPrevTable;
 		private System.Windows.Forms.Button btnNextTable;
-		private System.Windows.Forms.Button btnReload;
 		private System.Windows.Forms.Button btnParse;
 		private System.Windows.Forms.Label lblStatus;
 		private System.Windows.Forms.MenuStrip menuStrip1;

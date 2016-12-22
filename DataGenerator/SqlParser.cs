@@ -48,48 +48,16 @@ namespace DataGenerator
 			{
 				if (statement is SelectStatement)
 				{
-					// TODO: Tach method
-					SelectStatement selectQuery = (SelectStatement)statement;
-					QuerySpecification querySpec = (QuerySpecification)selectQuery.QueryExpression;
-
-					// Table list
-					SqlParser.GetTableListFromQuerySpec(querySpec, tableList, string.Empty);
-					SqlParser.GetWhereConditionsForQuerySpec(querySpec, tableList);
-
-					// Duplicate alias
-					foreach (Table table in tableList)
-					{
-						if (tableList.Where(tbl => tbl != table).Any(tbl => tbl.Alias == table.Alias))
-						{
-							ParseError error = new ParseError(0, 0, 0, 0, string.Format("Duplicate alias: {0} {1}", table.Alias, table.Name));
-							errors.Add(error);
-						}
-					}
+					SqlParser.GetTableListForSelectStatement((SelectStatement)statement, tableList);
 				}
-				else if (statement is CreateProcedureStatement)
+				else if (statement is ProcedureStatementBodyBase)
 				{
-					CreateProcedureStatement createProc = (CreateProcedureStatement)statement;
-					foreach (TSqlStatement createProcStatement in createProc.StatementList.Statements)
+					ProcedureStatementBodyBase procedureStatement = (ProcedureStatementBodyBase)statement;
+					foreach (TSqlStatement procStatement in procedureStatement.StatementList.Statements)
 					{
-						if (createProcStatement is SelectStatement)
+						if (procStatement is SelectStatement)
 						{
-							// TODO: Tach method
-							SelectStatement selectQuery = (SelectStatement)createProcStatement;
-							QuerySpecification querySpec = (QuerySpecification)selectQuery.QueryExpression;
-
-							// Table list
-							SqlParser.GetTableListFromQuerySpec(querySpec, tableList, string.Empty);
-							SqlParser.GetWhereConditionsForQuerySpec(querySpec, tableList);
-
-							// Duplicate alias
-							foreach (Table table in tableList)
-							{
-								if (tableList.Where(tbl => tbl != table).Any(tbl => tbl.Alias == table.Alias))
-								{
-									ParseError error = new ParseError(0, 0, 0, 0, string.Format("Duplicate alias: {0} {1}", table.Alias, table.Name));
-									errors.Add(error);
-								}
-							}
+							SqlParser.GetTableListForSelectStatement((SelectStatement)procStatement, tableList);
 						}
 					}
 				}
@@ -100,8 +68,27 @@ namespace DataGenerator
 				}
 			}
 
+			// Duplicate alias
+			foreach (Table table in tableList)
+			{
+				if (tableList.Where(tbl => tbl != table).Any(tbl => tbl.Alias == table.Alias))
+				{
+					ParseError error = new ParseError(0, 0, 0, 0, string.Format("Duplicate alias: {0} {1}", table.Alias, table.Name));
+					errors.Add(error);
+				}
+			}
+
 			this.settings = tableList;
 			this.Errors = errors;
+		}
+
+		private static void GetTableListForSelectStatement(SelectStatement selectQuery, List<Table> tableList)
+		{
+			QuerySpecification querySpec = (QuerySpecification)selectQuery.QueryExpression;
+
+			// Table list
+			SqlParser.GetTableListFromQuerySpec(querySpec, tableList, string.Empty);
+			SqlParser.GetWhereConditionsForQuerySpec(querySpec, tableList);
 		}
 
 		private static void GetTableListFromQuerySpec(QuerySpecification querySpec, List<Table> tableList, string queryAlias)

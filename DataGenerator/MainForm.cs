@@ -7,6 +7,7 @@ using System.Data.SqlClient;
 using System.Linq;
 using System.Text;
 using System.Threading;
+using System.Threading.Tasks;
 using System.Windows.Forms;
 
 namespace DataGenerator
@@ -41,8 +42,9 @@ namespace DataGenerator
 		/// <summary>
 		/// Bat dau
 		/// </summary>
-		private void Initialize(string query = "")
+		private bool Initialize(string query = "")
 		{
+			Thread.Sleep(10000);
 			this.tempData.Clear();
 			this.setting = new Mapping(query);
 
@@ -54,7 +56,7 @@ namespace DataGenerator
 					this.setting.Parser.Errors.Select(err => string.Format("Line {0}, Column {1}: {2}", err.Line, err.Column, err.Message))),
 					"Parse error");
 
-				return;
+				return false;
 			}
 
 			foreach (Table table in this.setting.Tables)
@@ -99,35 +101,8 @@ namespace DataGenerator
 			}
 
 			// Set gia tri cac dieu kien join cho khop voi this.setting
-			foreach (Join join in this.setting.Tables.SelectMany(tbl => tbl.Joins))
-			{
-				switch (join.Operator)
-				{
-					case Operators.Between:
-					case Operators.Equal:
-					case Operators.GreaterThanOrEqual:
-					case Operators.In: 
-					case Operators.LessThanOrEqual:
-						this.tempData[join.Table2.Alias].Rows[0][join.Column2] = this.tempData[join.Table1.Alias].Rows[0][join.Column1];
-
-						// Neu co dieu kien WHERE thi set theo dieu kien WHERE
-						Condition condition = this.setting.Tables
-							.SelectMany(tbl => tbl.Conditions)
-							.FirstOrDefault(cond => cond.Table == join.Table2 && string.Compare(cond.Column, join.Column2, true) == 0);
-						if (condition != null)
-						{
-							this.tempData[join.Table2.Alias].Rows[0][join.Column2] = condition.Value;
-							this.tempData[join.Table1.Alias].Rows[0][join.Column1] = condition.Value;
-						}
-						break;
-					// TODO: Other Operators
-					default:
-						break;
-				}
-			}
-
-			previewGrid.DataSource = this.tempData[this.setting.Tables[0].Alias];
-			tableNamesComboBox.SelectedValue = this.setting.Tables[0].Alias;
+			SetWhereConditionValues(this.setting.Tables, this.tempData);
+			return true;
 		}
 
 		/// <summary>
@@ -135,7 +110,7 @@ namespace DataGenerator
 		/// </summary>
 		/// <param name="table"></param>
 		/// <returns></returns>
-		private List<Join> CheckJoinsForTable(Table table)
+		private static List<Join> CheckJoinsForTable(Table table)
 		{
 			List<Join> failedJoins = new List<Join>();
 			using (SqlConnection conn = new SqlConnection(connectionString))
@@ -614,9 +589,7 @@ namespace DataGenerator
 					foreach (var value in (IEnumerable)condition.Value)
 					{
 						paramCollection.AddWithValue("@param" + paramIndex, value);
-
-						// paramIndex++
-						Interlocked.Increment(ref paramIndex);
+						paramIndex++;
 					}
 				}
 				else if (
@@ -635,9 +608,8 @@ namespace DataGenerator
 					paramCollection.AddWithValue("@param" + paramIndex, condition.Value);
 					paramCollection.AddWithValue("@param" + (paramIndex + 1), condition.Value);
 
-					// paramIndex++
-					Interlocked.Increment(ref paramIndex);
-					Interlocked.Increment(ref paramIndex);
+					paramIndex++;
+					paramIndex++;
 				}
 				else
 				{
@@ -651,8 +623,38 @@ namespace DataGenerator
 						.AppendLine();
 					paramCollection.AddWithValue("@param" + paramIndex, condition.Value);
 
-					// paramIndex++
-					Interlocked.Increment(ref paramIndex);
+					paramIndex++;
+				}
+			}
+		}
+
+		private static void SetWhereConditionValues(List<Table> tableList, Dictionary<string, DataTable> dataDict)
+		{
+			// Set gia tri cac dieu kien join cho khop voi this.setting
+			foreach (Join join in tableList.SelectMany(tbl => tbl.Joins))
+			{
+				switch (join.Operator)
+				{
+					case Operators.Between:
+					case Operators.Equal:
+					case Operators.GreaterThanOrEqual:
+					case Operators.In:
+					case Operators.LessThanOrEqual:
+						dataDict[join.Table2.Alias].Rows[0][join.Column2] = dataDict[join.Table1.Alias].Rows[0][join.Column1];
+
+						// Neu co dieu kien WHERE thi set theo dieu kien WHERE
+						Condition condition = tableList
+							.SelectMany(tbl => tbl.Conditions)
+							.FirstOrDefault(cond => cond.Table == join.Table2 && string.Compare(cond.Column, join.Column2, true) == 0);
+						if (condition != null)
+						{
+							dataDict[join.Table2.Alias].Rows[0][join.Column2] = condition.Value;
+							dataDict[join.Table1.Alias].Rows[0][join.Column1] = condition.Value;
+						}
+						break;
+					// TODO: Other Operators
+					default:
+						break;
 				}
 			}
 		}
@@ -711,13 +713,7 @@ namespace DataGenerator
 			previewGrid.DataSource = this.tempData[this.setting.Tables[nextIndex].Alias];
 		}
 
-		private void btnReload_Click(object sender, EventArgs e)
-		{
-			this.Initialize();
-			lblStatus.Text = string.Empty;
-		}
-
-		private void btnParse_Click(object sender, EventArgs e)
+		private async void btnParse_Click(object sender, EventArgs e)
 		{
 			lblStatus.Text = string.Empty;
 			if (string.IsNullOrEmpty(txtQuery.Text))
@@ -726,13 +722,25 @@ namespace DataGenerator
 				return;
 			}
 
-			this.Initialize(txtQuery.Text);
+			lblStatus.Text = "Loading...";
+			btnParse.Enabled = false;
 
-			if (tempData.Count > 0)
+			bool success = await Task.Run<bool>(() => this.Initialize(txtQuery.Text));
+			if (success)
 			{
-				//btnExcel.Enabled = true;
-				//btnInsert.Enabled = true;
+				lblStatus.Text = string.Empty;
+
+				if (tempData.Count > 0)
+				{
+					//btnExcel.Enabled = true;
+					//btnInsert.Enabled = true;
+				}
+
+				previewGrid.DataSource = this.tempData[this.setting.Tables[0].Alias];
+				tableNamesComboBox.SelectedValue = this.setting.Tables[0].Alias;
 			}
+
+			btnParse.Enabled = true;
 		}
 
 		private void exitToolStripMenuItem_Click(object sender, EventArgs e)
