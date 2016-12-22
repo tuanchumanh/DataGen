@@ -44,7 +44,6 @@ namespace DataGenerator
 		/// </summary>
 		private bool Initialize(string query = "")
 		{
-			Thread.Sleep(10000);
 			this.tempData.Clear();
 			this.setting = new Mapping(query);
 
