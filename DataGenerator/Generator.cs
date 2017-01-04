@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Data.SqlTypes;
 using System.Linq;
@@ -10,6 +11,7 @@ namespace DataGenerator
 	internal static class Generator
 	{
 		private static Random random = new Random();
+		private static ConcurrentDictionary<string, long> numberDict = new ConcurrentDictionary<string, long>();
 
 		public static object GenerateDummyData(string columnName, Type type, int length, short numericPrecision, short numericScale)
 		{
@@ -53,15 +55,18 @@ namespace DataGenerator
 
 		public static string RandomString(int length, string columnName)
 		{
+			columnName = GetAbbreviatedName(columnName);
 			if (columnName.Length >= length)
 			{
-				return RandomString(length);
+				// return RandomString(length);
+				return columnName[0] + numberDict.GetOrAdd(columnName, 1).ToString().PadLeft(length - 1, '0');
 			}
 			else
 			{
 				int randomStringLength = length - columnName.Length;
-				string randomNum = random.Next(IntPow(10, randomStringLength) - 1).ToString().PadLeft(randomStringLength, '0');
-				return string.Format("{0}{1}", columnName, RandomString(randomStringLength));
+				//string randomNum = random.Next(IntPow(10, randomStringLength) - 1).ToString().PadLeft(randomStringLength, '0');
+				// return string.Format("{0}{1}", columnName, RandomString(randomStringLength));
+				return columnName + numberDict.GetOrAdd(columnName, 1).ToString().PadLeft(randomStringLength, '0');
 			}
 		}
 
@@ -104,6 +109,21 @@ namespace DataGenerator
 			return Enumerable
 				  .Repeat(bas, exp)
 				  .Aggregate(1, (a, b) => a * b);
+		}
+
+		private static string GetAbbreviatedName(string name)
+		{
+			name = name.Replace("C_", string.Empty);
+			StringBuilder result = new StringBuilder();
+			for (int i = 0; i < name.Length; i++)
+			{
+				if (char.IsUpper(name[i]))
+				{
+					result.Append(name[i]);
+				}
+			}
+
+			return result.ToString();
 		}
 	}
 }

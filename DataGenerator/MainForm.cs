@@ -416,19 +416,11 @@ namespace DataGenerator
 				}
 
 				// Dua tren data lay tu DB, chi thay doi dieu kien where cho match voi query
-				foreach (Condition cond in table.Conditions)
+				DataTable schemaTable = GetSchemaTable(table);
+				foreach (DataRow resultRow in result.Rows)
 				{
-					if (cond.Value is InValues)
-					{
-						// Dieu kien IN set sau
-						continue;
-					}
-
-					foreach (DataRow resultRow in result.Rows)
-					{
-						resultRow[cond.Column] = cond.Value;
-						// TODO: Operator
-					}
+					SetWhereConditionsForDataRow(table, schemaTable, resultRow);
+					// TODO: Operator
 				}
 
 				// Loop lai 1 lan nua de set cho dieu kien IN
@@ -495,6 +487,47 @@ namespace DataGenerator
 		/// <returns></returns>
 		private static DataTable CreateDummyDataFromScratch(Table table)
 		{
+			// Get schema
+			DataTable schemaTable = GetSchemaTable(table);
+
+			DataTable result = new DataTable();
+			foreach (DataRow columnInfo in schemaTable.Rows)
+			{
+				string colName = columnInfo["ColumnName"] as string;
+
+				DataColumn column = new DataColumn();
+				column.ColumnName = colName;
+				column.DataType = (Type)columnInfo["DataType"];
+
+				result.Columns.Add(column);
+			}
+
+			DataRow dataRow = result.NewRow();
+			foreach (DataRow columnInfo in schemaTable.Rows)
+			{
+				string colName = columnInfo["ColumnName"] as string;
+				dataRow[colName] =
+					Generator.GenerateDummyData(
+						colName,
+						(Type)columnInfo["DataType"],
+						(int)columnInfo["ColumnSize"],
+						(short)columnInfo["NumericPrecision"],
+						(short)columnInfo["NumericScale"]);
+			}
+
+			SetWhereConditionsForDataRow(table, schemaTable, dataRow);
+			result.Rows.Add(dataRow);
+
+			return result;
+		}
+
+		/// <summary>
+		/// Lay thong tin ve column, datatype cua bang
+		/// </summary>
+		/// <param name="table"></param>
+		/// <returns></returns>
+		private static DataTable GetSchemaTable(Table table)
+		{
 			using (SqlConnection conn = new SqlConnection(connectionString))
 			using (SqlCommand cmd = new SqlCommand())
 			{
@@ -504,48 +537,64 @@ namespace DataGenerator
 				cmd.Connection = conn;
 
 				conn.Open();
-				DataTable schemaTable;
 				using (SqlDataReader reader = cmd.ExecuteReader(CommandBehavior.KeyInfo))
 				{
-					schemaTable = reader.GetSchemaTable();
+					DataTable schemaTable = reader.GetSchemaTable();
+					return schemaTable;
 				}
+			}
+		}
 
-				DataTable result = new DataTable();
-				foreach (DataRow columnInfo in schemaTable.Rows)
+		private static void SetWhereConditionsForDataRow(Table table, DataTable schemaTable, DataRow dataRow)
+		{
+			if (schemaTable == null)
+			{
+				schemaTable = GetSchemaTable(table);
+			}
+
+			foreach (Condition condition in table.Conditions)
+			{
+				switch (condition.Operator)
 				{
-					string colName = columnInfo["ColumnName"] as string;
+					case Operators.Between:
+					case Operators.Equal:
+					case Operators.GreaterThanOrEqual:
+					case Operators.LessThanOrEqual:
+						dataRow[condition.Column] = condition.Value;
+						break;
+					case Operators.NotEqual:
+						if (!condition.Value.Equals(dataRow[condition.Column]))
+						{
+							break;
+						}
 
-					DataColumn column = new DataColumn();
-					column.ColumnName = colName;
-					column.DataType = (Type)columnInfo["DataType"];
+						// Truong hop !=, generate dummy
+						DataRow columnInfo = schemaTable.Rows.Find(condition.Column);
+						object dummyData = condition.Value;
+						do
+						{
+							 dummyData = Generator.GenerateDummyData(
+											condition.Column,
+											(Type)columnInfo["DataType"],
+											(int)columnInfo["ColumnSize"],
+											(short)columnInfo["NumericPrecision"],
+											(short)columnInfo["NumericScale"]);
+						}
+						while (dummyData.Equals(condition.Value));
 
-					result.Columns.Add(column);
+						dataRow[condition.Column] = dummyData;
+
+						// TODO: Co join thi sao?
+
+						break;
+					// TODO: Other Operators
+					case Operators.In:
+					case Operators.GreaterThan:
+					case Operators.LessThan:
+					case Operators.NotBetween:
+					default:
+						break;
 				}
-
-				DataRow dummyRow = result.NewRow();
-				foreach (DataRow columnInfo in schemaTable.Rows)
-				{
-					string colName = columnInfo["ColumnName"] as string;
-					dummyRow[colName] =
-						Generator.GenerateDummyData(
-							colName,
-							(Type)columnInfo["DataType"],
-							(int)columnInfo["ColumnSize"],
-							(short)columnInfo["NumericPrecision"],
-							(short)columnInfo["NumericScale"]);
-				}
-
-				foreach (Condition cond in table.Conditions)
-				{
-					// Equals (=)
-					dummyRow[cond.Column] = cond.Value;
-
-					// TODO: Operator
-				}
-
-				result.Rows.Add(dummyRow);
-
-				return result;
 			}
 		}
 
@@ -627,9 +676,26 @@ namespace DataGenerator
 			}
 		}
 
+		/// <summary>
+		/// Sua lai gia tri trong dataDict dua theo dieu kien where (tableList)
+		/// </summary>
+		/// <param name="tableList"></param>
+		/// <param name="dataDict"></param>
 		private static void SetWhereConditionValues(List<Table> tableList, Dictionary<string, DataTable> dataDict)
 		{
-			// Set gia tri cac dieu kien join cho khop voi this.setting
+			// Set gia tri cho dieu kien WHERE
+			foreach (Table table in tableList)
+			{
+				DataTable schemaTable = GetSchemaTable(table);
+				foreach (DataRow dataRow in dataDict[table.Alias].Rows)
+				{
+					SetWhereConditionsForDataRow(table, schemaTable, dataRow);
+				}
+			}
+
+			List<Condition> allConditions = tableList.SelectMany(tbl => tbl.Conditions).ToList();
+
+			// Set gia tri cho dieu kien join
 			foreach (Join join in tableList.SelectMany(tbl => tbl.Joins))
 			{
 				switch (join.Operator)
@@ -639,17 +705,13 @@ namespace DataGenerator
 					case Operators.GreaterThanOrEqual:
 					case Operators.In:
 					case Operators.LessThanOrEqual:
-						dataDict[join.Table2.Alias].Rows[0][join.Column2] = dataDict[join.Table1.Alias].Rows[0][join.Column1];
-
-						// Neu co dieu kien WHERE thi set theo dieu kien WHERE
-						Condition condition = tableList
-							.SelectMany(tbl => tbl.Conditions)
-							.FirstOrDefault(cond => cond.Table == join.Table2 && string.Compare(cond.Column, join.Column2, true) == 0);
-						if (condition != null)
+						if (allConditions.Exists(cnd => cnd.Table == join.Table1 && cnd.Column == join.Column1))
 						{
-							dataDict[join.Table2.Alias].Rows[0][join.Column2] = condition.Value;
-							dataDict[join.Table1.Alias].Rows[0][join.Column1] = condition.Value;
+							dataDict[join.Table2.Alias].Rows[0][join.Column2] = dataDict[join.Table1.Alias].Rows[0][join.Column1];
+							break;
 						}
+
+						dataDict[join.Table1.Alias].Rows[0][join.Column1] = dataDict[join.Table2.Alias].Rows[0][join.Column2];
 						break;
 					// TODO: Other Operators
 					default:
@@ -715,7 +777,8 @@ namespace DataGenerator
 		private async void btnParse_Click(object sender, EventArgs e)
 		{
 			lblStatus.Text = string.Empty;
-			if (string.IsNullOrEmpty(txtQuery.Text))
+			string query = txtQuery.Text;
+			if (string.IsNullOrEmpty(query))
 			{
 				lblStatus.Text = "Query is empty.";
 				return;
@@ -724,7 +787,7 @@ namespace DataGenerator
 			lblStatus.Text = "Loading...";
 			btnParse.Enabled = false;
 
-			bool success = await Task.Run<bool>(() => this.Initialize(txtQuery.Text));
+			bool success = await Task.Run<bool>(() => this.Initialize(query));
 			if (success)
 			{
 				lblStatus.Text = string.Empty;
