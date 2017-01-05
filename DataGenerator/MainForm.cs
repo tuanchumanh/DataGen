@@ -23,7 +23,6 @@ namespace DataGenerator
 		{
 			InitializeComponent();
 			AppDomain.CurrentDomain.UnhandledException += CurrentDomain_UnhandledException;
-			// this.Initialize();
 		}
 
 		private void CurrentDomain_UnhandledException(object sender, UnhandledExceptionEventArgs args)
@@ -58,56 +57,43 @@ namespace DataGenerator
 				return false;
 			}
 
-			foreach (Table table in this.setting.Tables)
-			{
-				tableNamesComboBox.ValueMember = "Value";
-				tableNamesComboBox.DisplayMember = "Text";
-				tableNamesComboBox.DataSource = this.setting.Tables.Select(t => new { Text = string.Format("{0} ({1})", t.Name, t.Alias), Value = t.Alias }).ToList();
-			}
+			tableNamesComboBox.ValueMember = "Value";
+			tableNamesComboBox.DisplayMember = "Text";
+			tableNamesComboBox.DataSource = this.setting.TablesInfo.Select(t => new { Text = string.Format("{0} ({1})", t.Name, t.Alias), Value = t.Alias }).ToList();
 
-			// Base tren bang dau tien
-			if (!DataExists(this.setting.Tables[0], true))
+			// Tao data
+			foreach (TableInfo table in this.setting.TablesInfo)
 			{
-				// Truong hop khong tim thay data bang dau tien, tao data cho tat ca cac bang
-				foreach (Table table in this.setting.Tables)
+				if (DataExists(table, true))
 				{
-					DataTable dummyData = CreateData(table);
-					this.tempData[table.Alias] = dummyData;
+					// Truong hop co data
+					// Join thu, lay ra cac bang khong join duoc theo dieu kien da chi dinh
+					List<Join> failedJoins = CheckJoinsForTable(table);
+					if (failedJoins.Count > 0)
+					{
+						// Tao data cho cac bang khong join duoc
+						DataSet dummyDataSet = CreateDummyData(failedJoins);
+						foreach (DataTable dataTable in dummyDataSet.Tables)
+						{
+							this.tempData[dataTable.TableName] = dataTable;
+						}
+					}
+
+					if (!this.tempData.ContainsKey(table.Alias))
+					{
+						DataTable existingData = GetData(table);
+						this.tempData[table.Alias] = existingData;
+					}
 				}
-			}
-			else
-			{
-				foreach (Table table in this.setting.Tables)
+				else if (!this.tempData.ContainsKey(table.Alias))
 				{
-					if (DataExists(table, true))
-					{
-						// Join thu, lay ra cac bang khong join duoc theo dieu kien da chi dinh
-						List<Join> failedJoins = CheckJoinsForTable(table);
-						if (failedJoins.Count > 0)
-						{
-							// Tao data cho cac bang khong join duoc
-							DataSet dummyDataSet = CreateDummyData(failedJoins);
-							foreach (DataTable dataTable in dummyDataSet.Tables)
-							{
-								this.tempData[dataTable.TableName] = dataTable;
-							}
-						}
-
-						if (!this.tempData.ContainsKey(table.Alias))
-						{
-							DataTable existingData = GetData(table);
-							this.tempData[table.Alias] = existingData;
-						}
-					}
-					else
-					{
-						this.tempData[table.Alias] = CreateData(table);
-					}
+					// Neu khong tim thay data o DB hoac data dummy chua duoc tao, tao o day
+					this.tempData[table.Alias] = CreateData(table);
 				}
 			}
 
 			// Set gia tri cac dieu kien join cho khop voi this.setting
-			SetWhereConditionValues(this.setting.Tables, this.tempData);
+			SetWhereConditionValues(this.setting.TablesInfo, this.tempData);
 			return true;
 		}
 
@@ -116,7 +102,7 @@ namespace DataGenerator
 		/// </summary>
 		/// <param name="table"></param>
 		/// <returns></returns>
-		private static List<Join> CheckJoinsForTable(Table table)
+		private static List<Join> CheckJoinsForTable(TableInfo table)
 		{
 			List<Join> failedJoins = new List<Join>();
 			using (SqlConnection conn = new SqlConnection(connectionString))
@@ -130,7 +116,7 @@ namespace DataGenerator
 				queryBuilder.AppendLine();
 
 				// Loop qua tung doi tuong join cua bang
-				foreach (Table joinTargetTable in
+				foreach (TableInfo joinTargetTable in
 					table.Joins.OrderBy(j => j.Table2.Alias).GroupBy(j => j.Table2).Select(g => g.First().Table2))
 				{
 					int joinNo = 1;
@@ -204,7 +190,7 @@ namespace DataGenerator
 		/// </summary>
 		/// <param name="table"></param>
 		/// <returns></returns>
-		private static DataTable GetData(Table table)
+		private static DataTable GetData(TableInfo table)
 		{
 			using (SqlConnection sqlConnection1 = new SqlConnection(connectionString))
 			using (SqlCommand cmd = new SqlCommand())
@@ -239,7 +225,7 @@ namespace DataGenerator
 		/// <param name="table"></param>
 		/// <param name="conditionCheck">Co check ca dieu kien where hay khong</param>
 		/// <returns></returns>
-		private static bool DataExists(Table table, bool conditionCheck)
+		private static bool DataExists(TableInfo table, bool conditionCheck)
 		{
 			using (SqlConnection conn = new SqlConnection(connectionString))
 			using (SqlCommand cmd = new SqlCommand())
@@ -284,7 +270,7 @@ namespace DataGenerator
 				return result;
 			}
 
-			Table table1 = failedJoins.First().Table1;
+			TableInfo table1 = failedJoins.First().Table1;
 			if (failedJoins.Any(j => j.Table1 != table1))
 			{
 				return result;
@@ -298,7 +284,7 @@ namespace DataGenerator
 				cmd.CommandType = CommandType.Text;
 				cmd.Connection = conn;
 
-				foreach (Table table2 in
+				foreach (TableInfo table2 in
 						table1.Joins.GroupBy(j => j.Table2).Select(g => g.First().Table2))
 				{
 					StringBuilder joinCondBuilder = new StringBuilder();
@@ -381,7 +367,7 @@ namespace DataGenerator
 		/// </summary>
 		/// <param name="table"></param>
 		/// <returns></returns>
-		private static DataTable CreateData(Table table)
+		private static DataTable CreateData(TableInfo table)
 		{
 			DataTable result = new DataTable();
 			bool conditionsMatch = false;
@@ -445,7 +431,7 @@ namespace DataGenerator
 		/// </summary>
 		/// <param name="table"></param>
 		/// <param name="result"></param>
-		private static void CreateDataForInClause(Table table, DataTable result)
+		private static void CreateDataForInClause(TableInfo table, DataTable result)
 		{
 			foreach (Condition cond in table.Conditions)
 			{
@@ -495,7 +481,7 @@ namespace DataGenerator
 		/// </summary>
 		/// <param name="table"></param>
 		/// <returns></returns>
-		private static DataTable CreateDummyDataFromScratch(Table table)
+		private static DataTable CreateDummyDataFromScratch(TableInfo table)
 		{
 			// Get schema
 			DataTable schemaTable = GetSchemaTable(table);
@@ -528,6 +514,9 @@ namespace DataGenerator
 			SetWhereConditionsForDataRow(table, schemaTable, dataRow);
 			result.Rows.Add(dataRow);
 
+			// Loop lai 1 lan nua de set cho dieu kien IN
+			CreateDataForInClause(table, result);
+
 			return result;
 		}
 
@@ -536,7 +525,7 @@ namespace DataGenerator
 		/// </summary>
 		/// <param name="table"></param>
 		/// <returns></returns>
-		private static DataTable GetSchemaTable(Table table)
+		private static DataTable GetSchemaTable(TableInfo table)
 		{
 			using (SqlConnection conn = new SqlConnection(connectionString))
 			using (SqlCommand cmd = new SqlCommand())
@@ -555,7 +544,7 @@ namespace DataGenerator
 			}
 		}
 
-		private static void SetWhereConditionsForDataRow(Table table, DataTable schemaTable, DataRow dataRow)
+		private static void SetWhereConditionsForDataRow(TableInfo table, DataTable schemaTable, DataRow dataRow)
 		{
 			if (schemaTable == null)
 			{
@@ -597,8 +586,10 @@ namespace DataGenerator
 						// TODO: Co join thi sao?
 
 						break;
-					// TODO: Other Operators
 					case Operators.In:
+						// Bo qua vi o tren set roi
+						break;
+					// TODO: Other Operators
 					case Operators.GreaterThan:
 					case Operators.LessThan:
 					case Operators.NotBetween:
@@ -691,10 +682,10 @@ namespace DataGenerator
 		/// </summary>
 		/// <param name="tableList"></param>
 		/// <param name="dataDict"></param>
-		private static void SetWhereConditionValues(List<Table> tableList, Dictionary<string, DataTable> dataDict)
+		private static void SetWhereConditionValues(List<TableInfo> tableList, Dictionary<string, DataTable> dataDict)
 		{
 			// Set gia tri cho dieu kien WHERE
-			foreach (Table table in tableList)
+			foreach (TableInfo table in tableList)
 			{
 				DataTable schemaTable = GetSchemaTable(table);
 				foreach (DataRow dataRow in dataDict[table.Alias].Rows)
@@ -706,7 +697,8 @@ namespace DataGenerator
 			List<Condition> allConditions = tableList.SelectMany(tbl => tbl.Conditions).ToList();
 
 			// Set gia tri cho dieu kien join
-			foreach (Join join in tableList.SelectMany(tbl => tbl.Joins))
+			// TODO: ALL ROWS
+			foreach (Join join in tableList.SelectMany(tbl => tbl.Joins).OrderBy(j => j.Operator))
 			{
 				switch (join.Operator)
 				{
@@ -715,19 +707,82 @@ namespace DataGenerator
 					case Operators.GreaterThanOrEqual:
 					case Operators.In:
 					case Operators.LessThanOrEqual:
-						if (allConditions.Exists(cnd => cnd.Table == join.Table1 && cnd.Column == join.Column1))
+						if (allConditions.Exists(cnd => cnd.Table == join.Table1 && cnd.Column == join.Column1 && cnd.Operator >= Operators.Equal))
 						{
-							dataDict[join.Table2.Alias].Rows[0][join.Column2] = dataDict[join.Table1.Alias].Rows[0][join.Column1];
+							//dataDict[join.Table2.Alias].Rows[0][join.Column2] = dataDict[join.Table1.Alias].Rows[0][join.Column1];
+							EditAllColumnData(join.Table2.Alias, join.Column2, dataDict[join.Table1.Alias].Rows[0][join.Column1], dataDict);
 							break;
 						}
 
-						dataDict[join.Table1.Alias].Rows[0][join.Column1] = dataDict[join.Table2.Alias].Rows[0][join.Column2];
+						//dataDict[join.Table1.Alias].Rows[0][join.Column1] = dataDict[join.Table2.Alias].Rows[0][join.Column2];
+						EditAllColumnData(join.Table1.Alias, join.Column1, dataDict[join.Table2.Alias].Rows[0][join.Column2], dataDict);
 						break;
 					// TODO: Other Operators
+					case Operators.GreaterThan:
+					case Operators.LessThan:
+						object data = GetDataForInequalityOperator(join.Operator, dataDict[join.Table2.Alias].Rows[0][join.Column2]);
+						if (data != null)
+						{
+							//dataDict[join.Table1.Alias].Rows[0][join.Column1] = data;
+							EditAllColumnData(join.Table1.Alias, join.Column1, data, dataDict);
+						}
+
+						break;
+					case Operators.NotBetween:
+					case Operators.NotEqual:
 					default:
 						break;
 				}
 			}
+		}
+
+		private static void EditAllColumnData(string tableName, string columnName, object data, Dictionary<string, DataTable> dataDict)
+		{
+			foreach (DataRow row in dataDict[tableName].Rows)
+			{
+				row[columnName] = data;
+			}
+		}
+
+		private static object GetDataForInequalityOperator(Operators op, object value)
+		{
+			const string format = "yyyyMMdd";
+			string strVal = value as string;
+			if (strVal == null)
+			{
+				return null;
+			}
+
+			DateTime dateVal;
+			DateTime.TryParseExact(
+						strVal,
+						format,
+						null,
+						System.Globalization.DateTimeStyles.None,
+						out dateVal);
+
+			switch (op)
+			{
+				case Operators.GreaterThan:
+					if (dateVal != null)
+					{
+						return dateVal.AddDays(1).ToString(format);
+					}
+
+					break;
+				case Operators.LessThan:
+					if (dateVal != null)
+					{
+						return dateVal.AddDays(-1).ToString(format);
+					}
+
+					break;
+				default:
+					break;
+
+			}
+
+			return null;
 		}
 
 		private void tableNamesComboBox_SelectedIndexChanged(object sender, EventArgs e)
@@ -763,7 +818,7 @@ namespace DataGenerator
 			}
 
 			tableNamesComboBox.SelectedIndex = prevIndex;
-			previewGrid.DataSource = this.tempData[this.setting.Tables[prevIndex].Alias];
+			previewGrid.DataSource = this.tempData[this.setting.TablesInfo[prevIndex].Alias];
 		}
 
 		private void btnNextTable_Click(object sender, EventArgs e)
@@ -781,7 +836,7 @@ namespace DataGenerator
 			}
 
 			tableNamesComboBox.SelectedIndex = nextIndex;
-			previewGrid.DataSource = this.tempData[this.setting.Tables[nextIndex].Alias];
+			previewGrid.DataSource = this.tempData[this.setting.TablesInfo[nextIndex].Alias];
 		}
 
 		private async void btnParse_Click(object sender, EventArgs e)
@@ -806,10 +861,10 @@ namespace DataGenerator
 				{
 					//btnExcel.Enabled = true;
 					//btnInsert.Enabled = true;
-				}
 
-				previewGrid.DataSource = this.tempData[this.setting.Tables[0].Alias];
-				tableNamesComboBox.SelectedValue = this.setting.Tables[0].Alias;
+					previewGrid.DataSource = this.tempData[this.setting.TablesInfo[0].Alias];
+					tableNamesComboBox.SelectedValue = this.setting.TablesInfo[0].Alias;
+				}
 			}
 
 			btnParse.Enabled = true;
