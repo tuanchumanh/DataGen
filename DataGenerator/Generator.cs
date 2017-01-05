@@ -55,18 +55,23 @@ namespace DataGenerator
 
 		public static string RandomString(int length, string columnName)
 		{
+			if (length <= 2)
+			{
+				return RandomString(length);
+			}
+
 			columnName = GetAbbreviatedName(columnName);
-			if (columnName.Length >= length)
+			if (columnName.Length >= length + 1)
 			{
 				// return RandomString(length);
-				return columnName[0] + numberDict.GetOrAdd(columnName, 1).ToString().PadLeft(length - 1, '0');
+				return columnName[0] + numberDict.AddOrUpdate(columnName, 1, (key, oldValue) => oldValue + 1).ToString().PadLeft(length - 1, '0');
 			}
 			else
 			{
 				int randomStringLength = length - columnName.Length;
 				//string randomNum = random.Next(IntPow(10, randomStringLength) - 1).ToString().PadLeft(randomStringLength, '0');
 				// return string.Format("{0}{1}", columnName, RandomString(randomStringLength));
-				return columnName + numberDict.GetOrAdd(columnName, 1).ToString().PadLeft(randomStringLength, '0');
+				return columnName + numberDict.AddOrUpdate(columnName, 1, (key, oldValue) => oldValue + 1).ToString().PadLeft(randomStringLength, '0');
 			}
 		}
 

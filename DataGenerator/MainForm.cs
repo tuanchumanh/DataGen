@@ -79,22 +79,29 @@ namespace DataGenerator
 			{
 				foreach (Table table in this.setting.Tables)
 				{
-					// Join thu, lay ra cac bang khong join duoc theo dieu kien da chi dinh
-					List<Join> failedJoins = CheckJoinsForTable(table);
-					if (failedJoins.Count > 0)
+					if (DataExists(table, true))
 					{
-						// Tao data cho cac bang khong join duoc
-						DataSet dummyDataSet = CreateDummyData(failedJoins);
-						foreach (DataTable dataTable in dummyDataSet.Tables)
+						// Join thu, lay ra cac bang khong join duoc theo dieu kien da chi dinh
+						List<Join> failedJoins = CheckJoinsForTable(table);
+						if (failedJoins.Count > 0)
 						{
-							this.tempData[dataTable.TableName] = dataTable;
+							// Tao data cho cac bang khong join duoc
+							DataSet dummyDataSet = CreateDummyData(failedJoins);
+							foreach (DataTable dataTable in dummyDataSet.Tables)
+							{
+								this.tempData[dataTable.TableName] = dataTable;
+							}
+						}
+
+						if (!this.tempData.ContainsKey(table.Alias))
+						{
+							DataTable existingData = GetData(table);
+							this.tempData[table.Alias] = existingData;
 						}
 					}
-
-					if (!this.tempData.ContainsKey(table.Alias) && DataExists(table, true))
+					else
 					{
-						DataTable existingData = GetData(table);
-						this.tempData[table.Alias] = existingData;
+						this.tempData[table.Alias] = CreateData(table);
 					}
 				}
 			}
@@ -230,6 +237,7 @@ namespace DataGenerator
 		/// Check xem data cua bang da ton tai chua
 		/// </summary>
 		/// <param name="table"></param>
+		/// <param name="conditionCheck">Co check ca dieu kien where hay khong</param>
 		/// <returns></returns>
 		private static bool DataExists(Table table, bool conditionCheck)
 		{
@@ -264,7 +272,7 @@ namespace DataGenerator
 		}
 
 		/// <summary>
-		/// Tao data dummy
+		/// Tao data dummy dua theo dieu kien join bi fail
 		/// </summary>
 		/// <param name="failedJoins"></param>
 		/// <returns></returns>
@@ -328,6 +336,8 @@ namespace DataGenerator
 
 					AppendWhereConditions(table1.Alias, cmd.Parameters, table1.Conditions, conditionsBuilder);
 					AppendWhereConditions(table2.Alias, cmd.Parameters, table1.Conditions, conditionsBuilder);
+
+					conditionsBuilder.Remove(conditionsBuilder.Length - 5, 3);
 
 					string joinConditions = joinCondBuilder.ToString();
 					string whereConditions = conditionsBuilder.ToString();
@@ -601,7 +611,7 @@ namespace DataGenerator
 		private static int paramIndex = 0;
 
 		/// <summary>
-		/// Them where vao cau lenh
+		/// Them dieu kien where vao stringbuilder dua theo conditions
 		/// </summary>
 		/// <param name="tableName"></param>
 		/// <param name="paramCollection"></param>
