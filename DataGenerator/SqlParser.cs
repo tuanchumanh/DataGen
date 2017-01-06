@@ -20,9 +20,18 @@ namespace DataGenerator
 			}
 		}
 
+		public IEnumerable<Ranking> ConditionsRanking
+		{
+			get
+			{
+				return this.ranking.AsReadOnly();
+			}
+		}
+
 		public IList<ParseError> Errors { get; private set; }
 
 		private List<TableInfo> settings = new List<TableInfo>();
+		private List<Ranking> ranking = new List<Ranking>();
 
 		public SqlParser(string query)
 		{
@@ -635,6 +644,58 @@ namespace DataGenerator
 			QuerySpecification querySpec = (QuerySpecification)subQuery.QueryExpression;
 			SqlParser.GetTableListFromQuerySpec(querySpec, tableList, subqueryAlias);
 			SqlParser.GetWhereConditionsForQuerySpec(querySpec, tableList);
+		}
+
+		private static List<Ranking> GetRanking(List<TableInfo> tableList)
+		{
+			List<Ranking> rankingList = new List<Ranking>();
+
+			List<Join> allJoins = tableList.SelectMany(tbl => tbl.Joins).ToList();
+			List<Condition> allConditions = tableList.SelectMany(tbl => tbl.Conditions).ToList();
+
+			foreach (Join join in allJoins)
+			{
+				Ranking ranking1 = GetOrAddRanking(join.Table1, join.Column1, null, rankingList);
+				Ranking ranking2 = GetOrAddRanking(join.Table2, join.Column2, null, rankingList);
+			}
+
+			return rankingList;
+		}
+
+		private static Ranking GetOrAddRanking(TableInfo table, string column, object value, List<Ranking> rankingList)
+		{
+			Ranking result = null;
+			const int defaultRank = 500;
+			if (table != null && column != null)
+			{
+				result = rankingList.FirstOrDefault(rank => rank.Table == table && rank.Column == column);
+				if (result == null)
+				{
+					return new Ranking()
+					{
+						Table = table,
+						Column = column,
+						RankingType = RankingType.TableColumn,
+						RankValue = defaultRank,
+					};
+				}
+			}
+
+			if (value != null)
+			{
+				result = rankingList.FirstOrDefault(rank => value.Equals(rank.Value));
+				if (result == null)
+				{
+					return new Ranking()
+					{
+						Value = value,
+						RankingType = RankingType.Value,
+						RankValue = defaultRank,
+					};
+				}
+			}
+			
+			return null;
 		}
 	}
 }

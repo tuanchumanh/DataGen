@@ -82,9 +82,9 @@ namespace DataGenerator
 					.Select(s => s[random.Next(s.Length)]).ToArray());
 		}
 
-		public static DateTime RandomDate()
+		public static DateTime RandomDate(int numberOfDays = 365)
 		{
-			return DateTime.UtcNow.AddDays(random.Next(365));
+			return DateTime.UtcNow.AddDays(random.Next(numberOfDays));
 		}
 
 		public static string RandomDateString(string format = "yyyyMMdd")

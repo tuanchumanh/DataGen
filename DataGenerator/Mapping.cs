@@ -144,6 +144,21 @@ namespace DataGenerator
 		}
 	}
 
+	public class Ranking
+	{
+		public RankingType RankingType { get; set; }
+		public TableInfo Table { get; set; }
+		public string Column { get; set; }
+		public object Value { get; set; }
+		public int RankValue { get; set; }
+	}
+
+	public enum RankingType
+	{
+		TableColumn,
+		Value,
+	}
+
 	public interface InValues
 	{
 

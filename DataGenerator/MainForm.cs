@@ -4,6 +4,8 @@ using System.Collections.Generic;
 using System.Configuration;
 using System.Data;
 using System.Data.SqlClient;
+using System.Diagnostics;
+using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading;
@@ -30,6 +32,7 @@ namespace DataGenerator
 			Exception ex = (Exception)args.ExceptionObject;
 			MessageBox.Show(ex.ToString(), ex.Message, MessageBoxButtons.OK, MessageBoxIcon.Error);
 			lblStatus.Text = "Unexpected error occurred.";
+			btnCancel_Click(sender, args);
 		}
 
 		public MainForm(string[] args)
@@ -56,10 +59,6 @@ namespace DataGenerator
 
 				return false;
 			}
-
-			tableNamesComboBox.ValueMember = "Value";
-			tableNamesComboBox.DisplayMember = "Text";
-			tableNamesComboBox.DataSource = this.setting.TablesInfo.Select(t => new { Text = string.Format("{0} ({1})", t.Name, t.Alias), Value = t.Alias }).ToList();
 
 			// Tao data
 			foreach (TableInfo table in this.setting.TablesInfo)
@@ -551,7 +550,7 @@ namespace DataGenerator
 				schemaTable = GetSchemaTable(table);
 			}
 
-			foreach (Condition condition in table.Conditions)
+			foreach (Condition condition in table.Conditions.OrderBy(cond => cond.Operator))
 			{
 				switch (condition.Operator)
 				{
@@ -568,7 +567,7 @@ namespace DataGenerator
 						}
 
 						// Truong hop !=, generate dummy
-						DataRow columnInfo = schemaTable.Rows.Find(condition.Column);
+						DataRow columnInfo = schemaTable.Rows.Cast<DataRow>().FirstOrDefault(colInfo => condition.Column.Equals(colInfo["ColumnName"] as string));
 						object dummyData = condition.Value;
 						do
 						{
@@ -592,6 +591,8 @@ namespace DataGenerator
 					// TODO: Other Operators
 					case Operators.GreaterThan:
 					case Operators.LessThan:
+						// object data = GetDataForInequalityOperator(condition.Operator, condition.Value, null);
+						break;
 					case Operators.NotBetween:
 					default:
 						break;
@@ -707,6 +708,7 @@ namespace DataGenerator
 					case Operators.GreaterThanOrEqual:
 					case Operators.In:
 					case Operators.LessThanOrEqual:
+						// Neu co dieu kien WHERE tuong ung voi dieu kien JOIN, uu tien
 						if (allConditions.Exists(cnd => cnd.Table == join.Table1 && cnd.Column == join.Column1 && cnd.Operator >= Operators.Equal))
 						{
 							//dataDict[join.Table2.Alias].Rows[0][join.Column2] = dataDict[join.Table1.Alias].Rows[0][join.Column1];
@@ -720,7 +722,11 @@ namespace DataGenerator
 					// TODO: Other Operators
 					case Operators.GreaterThan:
 					case Operators.LessThan:
-						object data = GetDataForInequalityOperator(join.Operator, dataDict[join.Table2.Alias].Rows[0][join.Column2]);
+						object data = GetDataForInequalityOperator(
+							join.Operator,
+							dataDict[join.Table2.Alias].Rows[0][join.Column2],
+							allConditions.Where(cond => cond.Table == join.Table1 && cond.Column == join.Column1).ToList());
+
 						if (data != null)
 						{
 							//dataDict[join.Table1.Alias].Rows[0][join.Column1] = data;
@@ -744,37 +750,54 @@ namespace DataGenerator
 			}
 		}
 
-		private static object GetDataForInequalityOperator(Operators op, object value)
-		{
-			const string format = "yyyyMMdd";
-			string strVal = value as string;
-			if (strVal == null)
-			{
-				return null;
-			}
+		const string dateFormat = "yyyyMMdd";
 
-			DateTime dateVal;
-			DateTime.TryParseExact(
-						strVal,
-						format,
-						null,
-						System.Globalization.DateTimeStyles.None,
-						out dateVal);
+		/// <summary>
+		/// Lay ra data cho dieu kien lon hon, nho hon
+		/// </summary>
+		/// <param name="op">Toan tu</param>
+		/// <param name="compareValue">Gia tri so sanh</param>
+		/// <param name="conditions">Dieu kien WHERE</param>
+		/// <returns></returns>
+		private static object GetDataForInequalityOperator(Operators op, object compareValue, List<Condition> conditions)
+		{
+			object parsedValue;
+			Type objType = DetermineType(compareValue, out parsedValue);
 
 			switch (op)
 			{
 				case Operators.GreaterThan:
-					if (dateVal != null)
+					if (objType == typeof(DateTime))
 					{
-						return dateVal.AddDays(1).ToString(format);
+						return ((DateTime)parsedValue).AddDays(1).ToString(dateFormat);
 					}
+
+					if (objType == typeof(int))
+					{
+						return ((int)parsedValue) + 1;
+					}
+
+					if (objType == typeof(decimal))
+					{
+						return ((decimal)parsedValue) + 1;
+ 					}
 
 					break;
 				case Operators.LessThan:
-					if (dateVal != null)
+					if (objType == typeof(DateTime))
 					{
-						return dateVal.AddDays(-1).ToString(format);
+						return ((DateTime)parsedValue).AddDays(-1).ToString(dateFormat);
 					}
+
+					if (objType == typeof(int))
+					{
+						return ((int)parsedValue) - 1;
+					}
+
+					if (objType == typeof(decimal))
+					{
+						return ((decimal)parsedValue) - 1;
+ 					}
 
 					break;
 				default:
@@ -782,6 +805,50 @@ namespace DataGenerator
 
 			}
 
+			return null;
+		}
+
+		private static bool AreConditionsSatisfied()
+		{
+			return false;
+		}
+
+		private static Type DetermineType(object value, out object parsedValue)
+		{
+			string strVal = value as string;
+			if (strVal != null)
+			{
+				DateTime dateVal;
+				if (DateTime.TryParseExact(
+							strVal,
+							dateFormat,
+							null,
+							System.Globalization.DateTimeStyles.None,
+							out dateVal))
+				{
+					parsedValue = dateVal;
+					return typeof(DateTime);
+				}
+
+				int intVal;
+				if (int.TryParse(strVal, out intVal))
+				{
+					parsedValue = intVal;
+					return typeof(int);
+				}
+
+				decimal decVal;
+				if (decimal.TryParse(strVal, out decVal))
+				{
+					parsedValue = decVal;
+					return typeof(decimal);
+				}
+
+				parsedValue = strVal;
+				return typeof(string);
+			}
+
+			parsedValue = null;
 			return null;
 		}
 
@@ -795,12 +862,30 @@ namespace DataGenerator
 			DataTable dataTable;
 			if (this.tempData.TryGetValue(tableNamesComboBox.SelectedValue.ToString(), out dataTable))
 			{
-				previewGrid.DataSource = dataTable;
+				SetDataSource(dataTable);
 			}
 		}
 
+		private static string fileName = null;
+
 		private void btnExcel_Click(object sender, EventArgs e)
 		{
+			SaveFileDialog saveFileDialog = new SaveFileDialog();
+			saveFileDialog.Filter = "Excel|*.xlsx";
+			saveFileDialog.Title = "Choose a location";
+			saveFileDialog.FileName = Path.GetFileName(fileName);
+			saveFileDialog.ShowDialog();
+
+			if (!string.IsNullOrEmpty(saveFileDialog.FileName))
+			{
+				fileName = saveFileDialog.FileName;
+				DataTable dataTable;
+				if (this.tempData.TryGetValue(tableNamesComboBox.SelectedValue.ToString(), out dataTable))
+				{
+					ExcelWriter.Write(dataTable, fileName);
+					lblStatus.Text = "Export to Excel successful.";
+				}
+			}
 		}
 
 		private void btnPrevTable_Click(object sender, EventArgs e)
@@ -818,7 +903,7 @@ namespace DataGenerator
 			}
 
 			tableNamesComboBox.SelectedIndex = prevIndex;
-			previewGrid.DataSource = this.tempData[this.setting.TablesInfo[prevIndex].Alias];
+			SetDataSource(this.tempData[this.setting.TablesInfo[prevIndex].Alias]);
 		}
 
 		private void btnNextTable_Click(object sender, EventArgs e)
@@ -836,7 +921,7 @@ namespace DataGenerator
 			}
 
 			tableNamesComboBox.SelectedIndex = nextIndex;
-			previewGrid.DataSource = this.tempData[this.setting.TablesInfo[nextIndex].Alias];
+			SetDataSource(this.tempData[this.setting.TablesInfo[nextIndex].Alias]);
 		}
 
 		private async void btnParse_Click(object sender, EventArgs e)
@@ -849,25 +934,96 @@ namespace DataGenerator
 				return;
 			}
 
-			lblStatus.Text = "Loading...";
 			btnParse.Enabled = false;
+
+			cancellationSource = new CancellationTokenSource();
+			this.rotateTask = Task.Run(() => this.RotateText(cancellationSource.Token), cancellationSource.Token);
 
 			bool success = await Task.Run<bool>(() => this.Initialize(query));
 			if (success)
 			{
-				lblStatus.Text = string.Empty;
+				this.btnCancel_Click(sender, e);
 
 				if (tempData.Count > 0)
 				{
 					//btnExcel.Enabled = true;
 					//btnInsert.Enabled = true;
 
-					previewGrid.DataSource = this.tempData[this.setting.TablesInfo[0].Alias];
+					tableNamesComboBox.ValueMember = "Value";
+					tableNamesComboBox.DisplayMember = "Text";
+					tableNamesComboBox.DataSource = this.setting.TablesInfo.Select(t => new { Text = string.Format("{0} ({1})", t.Name, t.Alias), Value = t.Alias }).ToList();
 					tableNamesComboBox.SelectedValue = this.setting.TablesInfo[0].Alias;
+
+					SetDataSource(this.tempData[this.setting.TablesInfo[0].Alias]);
 				}
 			}
 
 			btnParse.Enabled = true;
+		}
+
+		CancellationTokenSource cancellationSource = null;
+		private Task rotateTask = null;
+
+		private void RotateText(CancellationToken cancelToken)
+		{
+			Stopwatch stopwatch = new Stopwatch();
+			stopwatch.Start();
+			while (true)
+			{
+				this.SetStatusText("Loading.");
+				Thread.Sleep(1000);
+				if (cancelToken.IsCancellationRequested)
+				{
+					break;
+				}
+
+				this.SetStatusText("Loading..");
+				Thread.Sleep(1000);
+				if (cancelToken.IsCancellationRequested)
+				{
+					break;
+				}
+
+				this.SetStatusText("Loading...");
+				Thread.Sleep(1000);
+				if (cancelToken.IsCancellationRequested)
+				{
+					break;
+				}
+
+				if (stopwatch.ElapsedMilliseconds >= 5000)
+				{
+					this.EnableCancellation();
+				}
+			}
+		}
+
+		delegate void EnableCancelCallback();
+		private void EnableCancellation()
+		{
+			if (this.btnCancel.InvokeRequired)
+			{
+				EnableCancelCallback callback = new EnableCancelCallback(EnableCancellation);
+				this.Invoke(callback);
+			}
+			else
+			{
+				// this.btnCancel.Visible = true;
+			}
+		}
+
+		delegate void SetStatusTextCallback(string text);
+		private void SetStatusText(string text)
+		{
+			//if (this.lblStatus.InvokeRequired)
+			//{
+			//	SetStatusTextCallback callback = new SetStatusTextCallback(SetStatusText);
+			//	this.Invoke(callback, new object[] { text });
+			//}
+			//else
+			//{
+				this.lblStatus.Text = text;
+			//}
 		}
 
 		private void exitToolStripMenuItem_Click(object sender, EventArgs e)
@@ -887,7 +1043,54 @@ namespace DataGenerator
 			this.tableNamesComboBox.DataSource = null;
 			this.tableNamesComboBox.ResetText();
 			this.tableNamesComboBox.SelectedIndex = -1;
+			SetDataSource(null);
+		}
+
+		private void SetDataSource(DataTable table)
+		{
 			this.previewGrid.DataSource = null;
+			this.previewGrid.DataSource = table;
+			foreach (DataGridViewColumn col in this.previewGrid.Columns)
+			{
+				col.SortMode = DataGridViewColumnSortMode.NotSortable;
+			}
+
+			this.previewGrid.Focus();
+			btnExcel.Enabled = (table != null);
+		}
+
+		private async void btnCancel_Click(object sender, EventArgs e)
+		{
+			if (this.rotateTask != null && this.rotateTask.Status == TaskStatus.Running && this.cancellationSource != null)
+			{
+				this.cancellationSource.Cancel();
+				await this.rotateTask;
+				lblStatus.Text = string.Empty;
+
+				this.rotateTask.Dispose();
+				this.rotateTask = null;
+
+				this.cancellationSource.Dispose();
+				this.cancellationSource = null;
+			}
+		}
+
+		private void chkHeaderCopy_CheckedChanged(object sender, EventArgs e)
+		{
+			if (this.chkHeaderCopy.Checked)
+			{
+				this.previewGrid.ClipboardCopyMode = DataGridViewClipboardCopyMode.EnableAlwaysIncludeHeaderText;
+			}
+			else
+			{
+				this.previewGrid.ClipboardCopyMode = DataGridViewClipboardCopyMode.EnableWithoutHeaderText;
+			}
+		}
+
+		private void btnCopy_Click(object sender, EventArgs e)
+		{
+			this.previewGrid.SelectAll();
+			Clipboard.SetDataObject(this.previewGrid.GetClipboardContent() ?? new DataObject(string.Empty));
 		}
 	}
 }
