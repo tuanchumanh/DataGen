@@ -100,7 +100,7 @@ namespace DataGenerator
 			}
 
 			// Set gia tri cac dieu kien join cho khop voi this.setting
-			SetWhereConditionValues(this.setting.TablesInfo, this.tempData);
+			SetWhereConditionValues(this.setting.TablesInfo, this.setting.RankInfo, this.tempData);
 			return true;
 		}
 
@@ -694,7 +694,7 @@ namespace DataGenerator
 		/// </summary>
 		/// <param name="tableList"></param>
 		/// <param name="dataDict"></param>
-		private static void SetWhereConditionValues(List<TableInfo> tableList, Dictionary<string, DataTable> dataDict)
+		private static void SetWhereConditionValues(List<TableInfo> tableList, List<Ranking> rankingList, Dictionary<string, DataTable> dataDict)
 		{
 			// Set gia tri cho dieu kien WHERE
 			foreach (TableInfo table in tableList)
@@ -730,13 +730,12 @@ namespace DataGenerator
 						//dataDict[join.Table1.Alias].Rows[0][join.Column1] = dataDict[join.Table2.Alias].Rows[0][join.Column2];
 						EditAllColumnData(join.Table1.Alias, join.Column1, dataDict[join.Table2.Alias].Rows[0][join.Column2], dataDict);
 						break;
-					// TODO: Other Operators
 					case Operators.GreaterThan:
 					case Operators.LessThan:
+						// TODO Add more logic
 						object data = GetDataForInequalityOperator(
 							join.Operator,
-							dataDict[join.Table2.Alias].Rows[0][join.Column2],
-							allConditions.Where(cond => cond.Table == join.Table1 && cond.Column == join.Column1).ToList());
+							dataDict[join.Table2.Alias].Rows[0][join.Column2]);
 
 						if (data != null)
 						{
@@ -745,6 +744,7 @@ namespace DataGenerator
 						}
 
 						break;
+					// TODO: Other Operators
 					case Operators.NotBetween:
 					case Operators.NotEqual:
 					default:
@@ -768,9 +768,8 @@ namespace DataGenerator
 		/// </summary>
 		/// <param name="op">Toan tu</param>
 		/// <param name="compareValue">Gia tri so sanh</param>
-		/// <param name="conditions">Dieu kien WHERE</param>
 		/// <returns></returns>
-		private static object GetDataForInequalityOperator(Operators op, object compareValue, List<Condition> conditions)
+		private static object GetDataForInequalityOperator(Operators op, object compareValue)
 		{
 			object parsedValue;
 			Type objType = DetermineType(compareValue, out parsedValue);

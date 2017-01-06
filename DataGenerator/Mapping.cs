@@ -12,6 +12,7 @@ namespace DataGenerator
 	internal class Mapping
 	{
 		public List<TableInfo> TablesInfo = new List<TableInfo>();
+		public List<Ranking> RankInfo = new List<Ranking>();
 		public SqlParser Parser { get; private set; }
 
 		public Mapping(string query)
@@ -23,6 +24,7 @@ namespace DataGenerator
 
 			this.Parser = new SqlParser(query);
 			this.TablesInfo = this.Parser.TableSettings.ToList();
+			this.RankInfo = this.Parser.ConditionsRanking.ToList();
 		}
 
 		public static string GetOperatorForQuery(Operators op)
@@ -168,16 +170,23 @@ namespace DataGenerator
 		public string Column { get; set; }
 		public object Value { get; set; }
 		public int RankValue { get; set; }
+		public string RankGroup { get; set; }
 
 		public override string ToString()
 		{
-			return string.Format("{0}:{1}:{2}{3}", RankValue, RankingType, Column, Value);
+			return string.Format("{0}:{1}:{2}:{3}{4}", RankValue, RankGroup, RankingType, Column, Value);
 		}
 
 		public int CompareTo(object obj)
 		{
 			Ranking rankObj = (Ranking)obj;
-			return (this.RankValue.CompareTo(rankObj.RankValue));
+			int result = this.RankGroup.CompareTo(rankObj.RankGroup);
+			if (result == 0)
+			{
+				result = this.RankValue.CompareTo(rankObj.RankValue);
+			}
+
+			return result;
 		}
 	}
 

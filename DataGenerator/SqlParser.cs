@@ -87,7 +87,13 @@ namespace DataGenerator
 				}
 			}
 
-			this.ranking = SqlParser.GetRanking(tableList).OrderBy(x => x.RankValue).ThenBy(x => x.RankingType).ThenBy(x => x.Table).ThenBy(x => x.Column).ToList();
+			this.ranking = SqlParser.GetRanking(tableList)
+				.OrderBy(x => x.RankGroup)
+				.ThenBy(x => x.RankValue)
+				.ThenBy(x => x.RankingType)
+				.ThenBy(x => x.Table)
+				.ThenBy(x => x.Column)
+				.ToList();
 
 			this.settings = tableList;
 			this.Errors = errors;
@@ -658,8 +664,9 @@ namespace DataGenerator
 
 			foreach (Join join in allJoins)
 			{
-				Ranking ranking1 = GetOrAddRanking(join.Table1, join.Column1, null, rankingList);
-				Ranking ranking2 = GetOrAddRanking(join.Table2, join.Column2, null, rankingList);
+				string guid = Guid.NewGuid().ToString();
+				Ranking ranking1 = GetOrAddRanking(join.Table1, join.Column1, null, rankingList, guid);
+				Ranking ranking2 = GetOrAddRanking(join.Table2, join.Column2, null, rankingList, guid);
 				rankingList.Add(ranking1);
 
 				switch (join.Operator)
@@ -694,7 +701,10 @@ namespace DataGenerator
 						}
 
 						ranking1.RankValue = erank.RankValue;
+						ranking1.RankGroup = erank.RankGroup;
+
 						ranking2.RankValue = ranking1.RankValue;
+						ranking2.RankGroup = ranking1.RankGroup;
 						break;
 					default:
 						break;
@@ -705,25 +715,21 @@ namespace DataGenerator
 
 			foreach (Condition condition in allConditions)
 			{
-				Ranking ranking1 = GetOrAddRanking(condition.Table, condition.Column, null, rankingList);
-				Ranking ranking2 = GetOrAddRanking(null, null, condition.Value, rankingList);
+				string guid = Guid.NewGuid().ToString();
+				Ranking ranking1 = GetOrAddRanking(condition.Table, condition.Column, null, rankingList, guid);
+				Ranking ranking2 = GetOrAddRanking(null, null, condition.Value, rankingList, guid);
 				rankingList.Add(ranking1);
+				rankingList.Add(ranking2);
 
 				switch (condition.Operator)
 				{
 					case Operators.GreaterThan:
-						foreach (Ranking rank in rankingList.Where(rnk => rnk.RankValue == ranking1.RankValue))
-						{
-							rank.RankValue = rank.RankValue + 1;
-						}
-
+						ranking2.RankValue = ranking1.RankValue - 1;
+						ranking2.RankGroup = ranking1.RankGroup;
 						break;
 					case Operators.LessThan:
-						foreach (Ranking rank in rankingList.Where(rnk => rnk.RankValue == ranking1.RankValue))
-						{
-							rank.RankValue = rank.RankValue - 1;
-						}
-
+						ranking2.RankValue = ranking1.RankValue + 1;
+						ranking2.RankGroup = ranking1.RankGroup;
 						break;
 					case Operators.Between:
 					case Operators.Equal:
@@ -741,20 +747,21 @@ namespace DataGenerator
 							erank = ranking1;
 						}
 
+						ranking1.RankGroup = erank.RankGroup;
 						ranking1.RankValue = erank.RankValue;
+
+						ranking2.RankGroup = ranking1.RankGroup;
 						ranking2.RankValue = ranking1.RankValue;
 						break;
 					default:
 						break;
 				}
-
-				rankingList.Add(ranking2);
 			}
 
 			return rankingList;
 		}
 
-		private static Ranking GetOrAddRanking(TableInfo table, string column, object value, IEnumerable<Ranking> rankingList)
+		private static Ranking GetOrAddRanking(TableInfo table, string column, object value, IEnumerable<Ranking> rankingList, string guid)
 		{
 			Ranking result = null;
 			if (table != null && column != null)
@@ -768,6 +775,7 @@ namespace DataGenerator
 						Column = column,
 						RankingType = RankingType.TableColumn,
 						RankValue = defaultRank,
+						RankGroup = guid,
 					};
 				}
 			}
@@ -782,6 +790,7 @@ namespace DataGenerator
 						Value = value,
 						RankingType = RankingType.Value,
 						RankValue = defaultRank,
+						RankGroup = guid,
 					};
 				}
 			}
