@@ -22,6 +22,11 @@ namespace DataGenerator
 					return RandomDateString();
 				}
 
+				if (columnName.IndexOf("Time", StringComparison.OrdinalIgnoreCase) != -1 && length == 4)
+				{
+					return RandomDateString("HHmm");
+				}
+
 				return RandomString(length, columnName);
 			}
 

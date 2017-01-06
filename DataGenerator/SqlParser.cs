@@ -87,6 +87,8 @@ namespace DataGenerator
 				}
 			}
 
+			this.ranking = SqlParser.GetRanking(tableList).OrderBy(x => x.RankValue).ThenBy(x => x.RankingType).ThenBy(x => x.Table).ThenBy(x => x.Column).ToList();
+
 			this.settings = tableList;
 			this.Errors = errors;
 		}
@@ -646,9 +648,10 @@ namespace DataGenerator
 			SqlParser.GetWhereConditionsForQuerySpec(querySpec, tableList);
 		}
 
-		private static List<Ranking> GetRanking(List<TableInfo> tableList)
+		private const int defaultRank = 500;
+		private static ISet<Ranking> GetRanking(List<TableInfo> tableList)
 		{
-			List<Ranking> rankingList = new List<Ranking>();
+			HashSet<Ranking> rankingList = new HashSet<Ranking>();
 
 			List<Join> allJoins = tableList.SelectMany(tbl => tbl.Joins).ToList();
 			List<Condition> allConditions = tableList.SelectMany(tbl => tbl.Conditions).ToList();
@@ -657,18 +660,106 @@ namespace DataGenerator
 			{
 				Ranking ranking1 = GetOrAddRanking(join.Table1, join.Column1, null, rankingList);
 				Ranking ranking2 = GetOrAddRanking(join.Table2, join.Column2, null, rankingList);
+				rankingList.Add(ranking1);
+
+				switch (join.Operator)
+				{
+					case Operators.GreaterThan:
+						foreach (Ranking rank in rankingList.Where(rnk => rnk.RankValue == ranking1.RankValue))
+						{
+							rank.RankValue = rank.RankValue + 1;
+						}
+
+						break;
+					case Operators.LessThan:
+						foreach (Ranking rank in rankingList.Where(rnk => rnk.RankValue == ranking1.RankValue))
+						{
+							rank.RankValue = rank.RankValue - 1;
+						}
+
+						break;
+					case Operators.Between:
+					case Operators.Equal:
+					case Operators.GreaterThanOrEqual:
+					case Operators.LessThanOrEqual:
+						var erank = rankingList.FirstOrDefault(rnk => rnk.Table == join.Table1 && rnk.Column == join.Column1);
+						if (erank != null)
+						{
+							erank = rankingList.FirstOrDefault(rnk => rnk.Table == join.Table2 && rnk.Column == join.Column2);
+						}
+
+						if (erank == null)
+						{
+							erank = ranking1;
+						}
+
+						ranking1.RankValue = erank.RankValue;
+						ranking2.RankValue = ranking1.RankValue;
+						break;
+					default:
+						break;
+				}
+
+				rankingList.Add(ranking2);
+			}
+
+			foreach (Condition condition in allConditions)
+			{
+				Ranking ranking1 = GetOrAddRanking(condition.Table, condition.Column, null, rankingList);
+				Ranking ranking2 = GetOrAddRanking(null, null, condition.Value, rankingList);
+				rankingList.Add(ranking1);
+
+				switch (condition.Operator)
+				{
+					case Operators.GreaterThan:
+						foreach (Ranking rank in rankingList.Where(rnk => rnk.RankValue == ranking1.RankValue))
+						{
+							rank.RankValue = rank.RankValue + 1;
+						}
+
+						break;
+					case Operators.LessThan:
+						foreach (Ranking rank in rankingList.Where(rnk => rnk.RankValue == ranking1.RankValue))
+						{
+							rank.RankValue = rank.RankValue - 1;
+						}
+
+						break;
+					case Operators.Between:
+					case Operators.Equal:
+					case Operators.GreaterThanOrEqual:
+					case Operators.LessThanOrEqual:
+					case Operators.In:
+						var erank = rankingList.FirstOrDefault(rnk => rnk.Table == condition.Table && rnk.Column == condition.Column);
+						if (erank != null)
+						{
+							erank = rankingList.FirstOrDefault(rnk => condition.Value.Equals(rnk.Value));
+						}
+
+						if (erank == null)
+						{
+							erank = ranking1;
+						}
+
+						ranking1.RankValue = erank.RankValue;
+						ranking2.RankValue = ranking1.RankValue;
+						break;
+					default:
+						break;
+				}
+
+				rankingList.Add(ranking2);
 			}
 
 			return rankingList;
 		}
 
-		private static Ranking GetOrAddRanking(TableInfo table, string column, object value, List<Ranking> rankingList)
+		private static Ranking GetOrAddRanking(TableInfo table, string column, object value, IEnumerable<Ranking> rankingList)
 		{
 			Ranking result = null;
-			const int defaultRank = 500;
 			if (table != null && column != null)
 			{
-				result = rankingList.FirstOrDefault(rank => rank.Table == table && rank.Column == column);
+				result = rankingList.FirstOrDefault(rank => rank != null && rank.Table == table && rank.Column == column);
 				if (result == null)
 				{
 					return new Ranking()
@@ -694,8 +785,8 @@ namespace DataGenerator
 					};
 				}
 			}
-			
-			return null;
+
+			return result;
 		}
 	}
 }

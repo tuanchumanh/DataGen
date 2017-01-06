@@ -5,6 +5,7 @@ using System.Configuration;
 using System.Data;
 using System.Data.SqlClient;
 using System.Diagnostics;
+using System.Drawing;
 using System.IO;
 using System.Linq;
 using System.Text;
@@ -32,6 +33,7 @@ namespace DataGenerator
 			Exception ex = (Exception)args.ExceptionObject;
 			MessageBox.Show(ex.ToString(), ex.Message, MessageBoxButtons.OK, MessageBoxIcon.Error);
 			lblStatus.Text = "Unexpected error occurred.";
+			btnParse.Enabled = true;
 			btnCancel_Click(sender, args);
 		}
 
@@ -89,6 +91,12 @@ namespace DataGenerator
 					// Neu khong tim thay data o DB hoac data dummy chua duoc tao, tao o day
 					this.tempData[table.Alias] = CreateData(table);
 				}
+			}
+
+			foreach (string alias in this.tempData.Keys)
+			{
+				DataTable dataTable = this.tempData[alias];
+				dataTable.TableName = this.setting.TablesInfo.FirstOrDefault(tbl => tbl.Alias == alias).Name;
 			}
 
 			// Set gia tri cac dieu kien join cho khop voi this.setting
@@ -207,6 +215,7 @@ namespace DataGenerator
 
 				sqlConnection1.Open();
 				DataTable result = new DataTable();
+				result.TableName = table.Name;
 				using (SqlDataReader reader = cmd.ExecuteReader(CommandBehavior.KeyInfo))
 				{
 					result.Load(reader);
@@ -354,6 +363,7 @@ namespace DataGenerator
 					foreach (Join failedJoin in failedJoins.Where(j => j.Table1 == table1 && j.Table2 == table2))
 					{
 						result.Tables[table2.Alias].Rows[0][failedJoin.Column2] = result.Tables[table1.Alias].Rows[0][failedJoin.Column1];
+						// TODO: Operator!!
 					}
 				}
 			}
@@ -415,13 +425,13 @@ namespace DataGenerator
 				foreach (DataRow resultRow in result.Rows)
 				{
 					SetWhereConditionsForDataRow(table, schemaTable, resultRow);
-					// TODO: Operator
 				}
 
 				// Loop lai 1 lan nua de set cho dieu kien IN
 				CreateDataForInClause(table, result);
 			}
 
+			result.TableName = table.Name;
 			return result;
 		}
 
@@ -486,6 +496,7 @@ namespace DataGenerator
 			DataTable schemaTable = GetSchemaTable(table);
 
 			DataTable result = new DataTable();
+			result.TableName = table.Name;
 			foreach (DataRow columnInfo in schemaTable.Rows)
 			{
 				string colName = columnInfo["ColumnName"] as string;
@@ -870,6 +881,18 @@ namespace DataGenerator
 
 		private void btnExcel_Click(object sender, EventArgs e)
 		{
+			Button btnSender = (Button)sender;
+			ContextMenu cm = new ContextMenu();
+			cm.MenuItems.Add("Current table").Click += ExportExcelOne;
+			cm.MenuItems.Add("All").Click += ExportExcelAll;
+
+			Point ptLowerLeft = new Point(0, btnSender.Height);
+			ptLowerLeft = btnSender.PointToScreen(ptLowerLeft);
+			cm.Show(btnSender, btnSender.PointToClient(Cursor.Position));
+		}
+
+		private void ExportExcelOne(object sender, EventArgs e)
+		{
 			SaveFileDialog saveFileDialog = new SaveFileDialog();
 			saveFileDialog.Filter = "Excel|*.xlsx";
 			saveFileDialog.Title = "Choose a location";
@@ -882,9 +905,25 @@ namespace DataGenerator
 				DataTable dataTable;
 				if (this.tempData.TryGetValue(tableNamesComboBox.SelectedValue.ToString(), out dataTable))
 				{
-					ExcelWriter.Write(dataTable, fileName);
+					ExcelWriter.Write(dataTable, tableNamesComboBox.SelectedValue.ToString(), fileName);
 					lblStatus.Text = "Export to Excel successful.";
 				}
+			}
+		}
+
+		private void ExportExcelAll(object sender, EventArgs e)
+		{
+			SaveFileDialog saveFileDialog = new SaveFileDialog();
+			saveFileDialog.Filter = "Excel|*.xlsx";
+			saveFileDialog.Title = "Choose a location";
+			saveFileDialog.FileName = Path.GetFileName(fileName);
+			saveFileDialog.ShowDialog();
+
+			if (!string.IsNullOrEmpty(saveFileDialog.FileName))
+			{
+				fileName = saveFileDialog.FileName;
+				ExcelWriter.Write(this.tempData, fileName);
+				lblStatus.Text = "Export to Excel successful.";
 			}
 		}
 
@@ -926,6 +965,7 @@ namespace DataGenerator
 
 		private async void btnParse_Click(object sender, EventArgs e)
 		{
+			this.btnClear_Click(sender, e);
 			lblStatus.Text = string.Empty;
 			string query = txtQuery.Text;
 			if (string.IsNullOrEmpty(query))

@@ -101,7 +101,7 @@ namespace DataGenerator
 		Like = 9,
 	}
 
-	public class TableInfo
+	public class TableInfo : IComparable
 	{
 		public string Alias { get; set; }
 		public string Name { get; set; }
@@ -113,6 +113,23 @@ namespace DataGenerator
 		public override string ToString()
 		{
 			return string.Format("{0}:{1}", this.Alias, this.Name);
+		}
+
+		public int CompareTo(object obj)
+		{
+			if (obj == null)
+			{
+				return 1;
+			}
+
+			TableInfo tblObj = (TableInfo)obj;
+			int result = this.Name.CompareTo(tblObj.Name);
+			if (result == 0)
+			{
+				result = this.Alias.CompareTo(tblObj.Alias);
+			}
+
+			return (result);
 		}
 	}
 
@@ -144,13 +161,24 @@ namespace DataGenerator
 		}
 	}
 
-	public class Ranking
+	public class Ranking : IComparable
 	{
 		public RankingType RankingType { get; set; }
 		public TableInfo Table { get; set; }
 		public string Column { get; set; }
 		public object Value { get; set; }
 		public int RankValue { get; set; }
+
+		public override string ToString()
+		{
+			return string.Format("{0}:{1}:{2}{3}", RankValue, RankingType, Column, Value);
+		}
+
+		public int CompareTo(object obj)
+		{
+			Ranking rankObj = (Ranking)obj;
+			return (this.RankValue.CompareTo(rankObj.RankValue));
+		}
 	}
 
 	public enum RankingType
