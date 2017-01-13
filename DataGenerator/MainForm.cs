@@ -1044,7 +1044,7 @@ namespace DataGenerator
 		CancellationTokenSource cancellationSource = null;
 		private Task rotateTask = null;
 
-		private void RotateText(CancellationToken cancelToken)
+		private bool RotateText(CancellationToken cancelToken)
 		{
 			Stopwatch stopwatch = new Stopwatch();
 			stopwatch.Start();
@@ -1076,6 +1076,8 @@ namespace DataGenerator
 					this.EnableCancellation();
 				}
 			}
+
+			return true;
 		}
 
 		delegate void EnableCancelCallback();
@@ -1148,10 +1150,7 @@ namespace DataGenerator
 				lblStatus.Text = string.Empty;
 				btnParse.Enabled = true;
 
-				this.rotateTask.Dispose();
 				this.rotateTask = null;
-
-				this.cancellationSource.Dispose();
 				this.cancellationSource = null;
 			}
 		}
