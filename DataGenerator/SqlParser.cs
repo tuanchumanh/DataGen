@@ -192,6 +192,12 @@ namespace DataGenerator
 				{
 					SqlParser.AddBetweenCondition((BooleanTernaryExpression)querySpec.WhereClause.SearchCondition, tableList);
 				}
+
+				// Dieu kien WHERE la LIKE
+				if (querySpec.WhereClause.SearchCondition is LikePredicate)
+				{
+					SqlParser.AddLikePredicateCondition((LikePredicate)querySpec.WhereClause.SearchCondition, tableList);
+				}
 			}
 		}
 
@@ -248,6 +254,42 @@ namespace DataGenerator
 			{
 				// TODO: IN Subquery
 				SqlParser.AddInPredicateCondition((InPredicate)expression, tableList);
+			}
+
+			// Dieu kien WHERE la LIKE
+			if (expression is LikePredicate)
+			{
+				SqlParser.AddLikePredicateCondition((LikePredicate)expression, tableList);
+			}
+		}
+
+		private static void AddLikePredicateCondition(LikePredicate likePredicate, List<TableInfo> tableList)
+		{
+			if (likePredicate.FirstExpression is ColumnReferenceExpression &&
+				likePredicate.SecondExpression is StringLiteral)
+			{
+				// 1 cai la Reference, 1 cai la value => Dieu kien
+				ColumnReferenceExpression joinLeft = (ColumnReferenceExpression)likePredicate.FirstExpression;
+				StringLiteral value = (StringLiteral)likePredicate.SecondExpression;
+
+				// Lay ra table name cua dieu kien tu Identifier cua Reference
+				string colName = joinLeft.MultiPartIdentifier.Identifiers[joinLeft.MultiPartIdentifier.Identifiers.Count - 1].Value;
+
+				// Tim ra table tuong ung
+				TableInfo targetTable = SqlParser.GetTableHavingColumn(colName, joinLeft, tableList);
+
+				if (targetTable != null)
+				{
+					Condition condition = new Condition()
+					{
+						Table = targetTable,
+						Column = colName,
+						Value = value.Value,
+						Operator = Operators.Like,
+					};
+
+					targetTable.Conditions.Add(condition);
+				}
 			}
 		}
 
@@ -693,6 +735,7 @@ namespace DataGenerator
 					case Operators.Equal:
 					case Operators.GreaterThanOrEqual:
 					case Operators.LessThanOrEqual:
+					case Operators.Like:
 						var erank = rankingList.FirstOrDefault(rnk => rnk.Table == join.Table1 && rnk.Column == join.Column1);
 						if (erank == null)
 						{
@@ -743,6 +786,7 @@ namespace DataGenerator
 					case Operators.GreaterThanOrEqual:
 					case Operators.LessThanOrEqual:
 					case Operators.In:
+					case Operators.Like:
 						var erank = rankingList.FirstOrDefault(rnk => rnk.Table == condition.Table && rnk.Column == condition.Column);
 						if (erank == null)
 						{
@@ -762,6 +806,11 @@ namespace DataGenerator
 						break;
 					default:
 						break;
+				}
+
+				if (condition.Operator == Operators.Like)
+				{
+					ranking2.RankingType = RankingType.LikeValue;
 				}
 
 				rankingList.Add(ranking1);

@@ -420,13 +420,6 @@ namespace DataGenerator
 					result.Load(reader);
 				}
 
-				// Dua tren data lay tu DB, chi thay doi dieu kien where cho match voi query
-				DataTable schemaTable = GetSchemaTable(table);
-				foreach (DataRow resultRow in result.Rows)
-				{
-					//SetWhereConditionsForDataRow(table, schemaTable, resultRow);
-				}
-
 				// Loop lai 1 lan nua de set cho dieu kien IN
 				CreateDataForInClause(table, result);
 			}
@@ -646,7 +639,7 @@ namespace DataGenerator
 					.ToList();
 				foreach (Ranking ranking in currentGroupRanks)
 				{
-					if (ranking.RankingType == RankingType.Value)
+					if (ranking.RankingType != RankingType.TableColumn)
 					{
 						continue;
 					}
@@ -680,13 +673,37 @@ namespace DataGenerator
 						SetColumnOfAllRowsToValue(dataDict[ranking.Table.Alias], ranking.Column, sameValueRank.Value);
 					}
 
+					// Tim ra dieu kien LIKE
+					Ranking likeValueRank = currentGroupRanks
+						.Where(rank => rank.RankValue == ranking.RankValue && rank.RankingType == RankingType.LikeValue)
+						.FirstOrDefault();
+					if (likeValueRank != null)
+					{
+						DataTable schemaTable = GetSchemaTable(ranking.Table);
+						var colInfo = schemaTable.Rows.Cast<DataRow>().Where(col => ranking.Column.Equals(col["ColumnName"])).FirstOrDefault();
+						if (colInfo != null)
+						{
+							string tempVal = Generator.RandomString((int)colInfo["ColumnSize"]);
+							string startString = (likeValueRank.Value as string).Replace("%", string.Empty);
+
+							if (startString.Length > tempVal.Length)
+							{
+								startString = startString.Substring(0, tempVal.Length);
+							}
+
+							tempVal = startString + tempVal.Substring(startString.Length, tempVal.Length - startString.Length);
+
+							SetColumnOfAllRowsToValue(dataDict[ranking.Table.Alias], ranking.Column, tempVal);
+						}
+					}
+
 					// Set lai item co gia tri rank equals
 					List<Ranking> sameValueRanks = currentGroupRanks
 						.Where(rank => rank.RankValue == ranking.RankValue && rank != ranking)
 						.ToList();
 					foreach (Ranking sameRanking in sameValueRanks)
 					{
-						if (sameRanking.RankingType == RankingType.Value)
+						if (sameRanking.RankingType != RankingType.TableColumn)
 						{
 							continue;
 						}

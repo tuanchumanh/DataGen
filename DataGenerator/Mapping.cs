@@ -194,6 +194,7 @@ namespace DataGenerator
 	{
 		TableColumn,
 		Value,
+		LikeValue,
 	}
 
 	public interface InValues
