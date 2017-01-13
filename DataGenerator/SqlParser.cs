@@ -378,10 +378,10 @@ namespace DataGenerator
 				ColumnReferenceExpression join2 = (ColumnReferenceExpression)compareExpression.SecondExpression;
 
 				string table1Alias = join1.MultiPartIdentifier.Identifiers[0].Value;
-				string table2Alias = join2.MultiPartIdentifier.Identifiers[0].Value;
+				string table1Column = join1.MultiPartIdentifier.Identifiers[1].Value;
 
-				string columnName1 = join1.MultiPartIdentifier.Identifiers[1].Value;
-				string columnName2 = join2.MultiPartIdentifier.Identifiers[1].Value;
+				string table2Alias = join2.MultiPartIdentifier.Identifiers[0].Value;
+				string table2Column = join2.MultiPartIdentifier.Identifiers[1].Value;
 
 				TableInfo table1 = tableList.FirstOrDefault(tbl => tbl.Alias == table1Alias);
 				TableInfo table2 = tableList.FirstOrDefault(tbl => tbl.Alias == table2Alias);
@@ -391,9 +391,9 @@ namespace DataGenerator
 					Join join = new Join()
 					{
 						Table1 = table1,
-						Column1 = columnName1,
+						Column1 = table1Column,
 						Table2 = table2,
-						Column2 = columnName2,
+						Column2 = table2Column,
 						Operator = SqlParser.GetOperator(compareExpression.ComparisonType),
 					};
 
@@ -407,15 +407,15 @@ namespace DataGenerator
 						.Where(tbl => tbl.SubqueryAlias.Contains(table2Alias))
 						.ToList();
 
-					TableInfo targetTable = SqlParser.GetTableHavingColumn(columnName2, subQueryTableList);
+					TableInfo targetTable = SqlParser.GetTableHavingColumn(table2Column, subQueryTableList);
 					if (targetTable != null)
 					{
 						Join join = new Join()
 						{
 							Table1 = table1,
-							Column1 = columnName1,
+							Column1 = table1Column,
 							Table2 = targetTable,
-							Column2 = columnName2,
+							Column2 = table2Column,
 							Operator = SqlParser.GetOperator(compareExpression.ComparisonType),
 						};
 
@@ -428,15 +428,15 @@ namespace DataGenerator
 						.Where(tbl => tbl.SubqueryAlias.Contains(table1Alias))
 						.ToList();
 
-					TableInfo targetTable = SqlParser.GetTableHavingColumn(columnName1, subQueryTableList);
+					TableInfo targetTable = SqlParser.GetTableHavingColumn(table1Column, subQueryTableList);
 					if (targetTable != null)
 					{
 						Join join = new Join()
 						{
 							Table1 = table2,
-							Column1 = columnName2,
+							Column1 = table2Column,
 							Table2 = targetTable,
-							Column2 = columnName1,
+							Column2 = table1Column,
 							Operator = SqlParser.GetOperator(compareExpression.ComparisonType),
 						};
 
@@ -450,17 +450,17 @@ namespace DataGenerator
 						.Where(tbl => tbl.SubqueryAlias.Contains(table1Alias) || tbl.SubqueryAlias.Contains(table2Alias))
 						.ToList();
 
-					TableInfo targetTable1 = SqlParser.GetTableHavingColumn(columnName1, subQueryTableList);
-					TableInfo targetTable2 = SqlParser.GetTableHavingColumn(columnName2, subQueryTableList);
+					TableInfo targetTable1 = SqlParser.GetTableHavingColumn(table1Column, subQueryTableList);
+					TableInfo targetTable2 = SqlParser.GetTableHavingColumn(table2Column, subQueryTableList);
 					if (targetTable1 != null && targetTable2 != null)
 					{
 
 						Join join = new Join()
 						{
 							Table1 = targetTable1,
-							Column1 = columnName1,
+							Column1 = table1Column,
 							Table2 = targetTable2,
-							Column2 = columnName2,
+							Column2 = table2Column,
 							Operator = SqlParser.GetOperator(compareExpression.ComparisonType),
 						};
 
@@ -667,11 +667,12 @@ namespace DataGenerator
 				string guid = Guid.NewGuid().ToString();
 				Ranking ranking1 = GetOrAddRanking(join.Table1, join.Column1, null, rankingList, guid);
 				Ranking ranking2 = GetOrAddRanking(join.Table2, join.Column2, null, rankingList, guid);
-				rankingList.Add(ranking1);
 
 				switch (join.Operator)
 				{
 					case Operators.GreaterThan:
+						rankingList.Add(ranking1);
+						rankingList.Add(ranking2);
 						foreach (Ranking rank in rankingList.Where(rnk => rnk.RankValue == ranking1.RankValue))
 						{
 							rank.RankValue = rank.RankValue + 1;
@@ -679,6 +680,9 @@ namespace DataGenerator
 
 						break;
 					case Operators.LessThan:
+					case Operators.NotEqual:
+						rankingList.Add(ranking1);
+						rankingList.Add(ranking2);
 						foreach (Ranking rank in rankingList.Where(rnk => rnk.RankValue == ranking1.RankValue))
 						{
 							rank.RankValue = rank.RankValue - 1;
@@ -690,7 +694,7 @@ namespace DataGenerator
 					case Operators.GreaterThanOrEqual:
 					case Operators.LessThanOrEqual:
 						var erank = rankingList.FirstOrDefault(rnk => rnk.Table == join.Table1 && rnk.Column == join.Column1);
-						if (erank != null)
+						if (erank == null)
 						{
 							erank = rankingList.FirstOrDefault(rnk => rnk.Table == join.Table2 && rnk.Column == join.Column2);
 						}
@@ -705,12 +709,15 @@ namespace DataGenerator
 
 						ranking2.RankValue = ranking1.RankValue;
 						ranking2.RankGroup = ranking1.RankGroup;
+						
+						rankingList.Add(ranking1);
+						rankingList.Add(ranking2);
 						break;
+					case Operators.NotBetween:
 					default:
 						break;
 				}
 
-				rankingList.Add(ranking2);
 			}
 
 			foreach (Condition condition in allConditions)
@@ -718,8 +725,6 @@ namespace DataGenerator
 				string guid = Guid.NewGuid().ToString();
 				Ranking ranking1 = GetOrAddRanking(condition.Table, condition.Column, null, rankingList, guid);
 				Ranking ranking2 = GetOrAddRanking(null, null, condition.Value, rankingList, guid);
-				rankingList.Add(ranking1);
-				rankingList.Add(ranking2);
 
 				switch (condition.Operator)
 				{
@@ -728,6 +733,8 @@ namespace DataGenerator
 						ranking2.RankGroup = ranking1.RankGroup;
 						break;
 					case Operators.LessThan:
+					case Operators.NotEqual:
+					case Operators.NotBetween:
 						ranking2.RankValue = ranking1.RankValue + 1;
 						ranking2.RankGroup = ranking1.RankGroup;
 						break;
@@ -737,7 +744,7 @@ namespace DataGenerator
 					case Operators.LessThanOrEqual:
 					case Operators.In:
 						var erank = rankingList.FirstOrDefault(rnk => rnk.Table == condition.Table && rnk.Column == condition.Column);
-						if (erank != null)
+						if (erank == null)
 						{
 							erank = rankingList.FirstOrDefault(rnk => condition.Value.Equals(rnk.Value));
 						}
@@ -756,6 +763,9 @@ namespace DataGenerator
 					default:
 						break;
 				}
+
+				rankingList.Add(ranking1);
+				rankingList.Add(ranking2);
 			}
 
 			return rankingList;

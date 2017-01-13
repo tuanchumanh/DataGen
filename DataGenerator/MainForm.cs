@@ -424,7 +424,7 @@ namespace DataGenerator
 				DataTable schemaTable = GetSchemaTable(table);
 				foreach (DataRow resultRow in result.Rows)
 				{
-					SetWhereConditionsForDataRow(table, schemaTable, resultRow);
+					//SetWhereConditionsForDataRow(table, schemaTable, resultRow);
 				}
 
 				// Loop lai 1 lan nua de set cho dieu kien IN
@@ -521,7 +521,7 @@ namespace DataGenerator
 						(short)columnInfo["NumericScale"]);
 			}
 
-			SetWhereConditionsForDataRow(table, schemaTable, dataRow);
+			//SetWhereConditionsForDataRow(table, schemaTable, dataRow);
 			result.Rows.Add(dataRow);
 
 			// Loop lai 1 lan nua de set cho dieu kien IN
@@ -540,7 +540,6 @@ namespace DataGenerator
 			using (SqlConnection conn = new SqlConnection(connectionString))
 			using (SqlCommand cmd = new SqlCommand())
 			{
-				// Get schema
 				cmd.CommandText = string.Format("SELECT * FROM {0}", table.Name);
 				cmd.CommandType = CommandType.Text;
 				cmd.Connection = conn;
@@ -548,65 +547,9 @@ namespace DataGenerator
 				conn.Open();
 				using (SqlDataReader reader = cmd.ExecuteReader(CommandBehavior.KeyInfo))
 				{
+					// Only acquire schema
 					DataTable schemaTable = reader.GetSchemaTable();
 					return schemaTable;
-				}
-			}
-		}
-
-		private static void SetWhereConditionsForDataRow(TableInfo table, DataTable schemaTable, DataRow dataRow)
-		{
-			if (schemaTable == null)
-			{
-				schemaTable = GetSchemaTable(table);
-			}
-
-			foreach (Condition condition in table.Conditions.OrderBy(cond => cond.Operator))
-			{
-				switch (condition.Operator)
-				{
-					case Operators.Between:
-					case Operators.Equal:
-					case Operators.GreaterThanOrEqual:
-					case Operators.LessThanOrEqual:
-						dataRow[condition.Column] = condition.Value;
-						break;
-					case Operators.NotEqual:
-						if (!condition.Value.Equals(dataRow[condition.Column]))
-						{
-							break;
-						}
-
-						// Truong hop !=, generate dummy
-						DataRow columnInfo = schemaTable.Rows.Cast<DataRow>().FirstOrDefault(colInfo => condition.Column.Equals(colInfo["ColumnName"] as string));
-						object dummyData = condition.Value;
-						do
-						{
-							 dummyData = Generator.GenerateDummyData(
-											condition.Column,
-											(Type)columnInfo["DataType"],
-											(int)columnInfo["ColumnSize"],
-											(short)columnInfo["NumericPrecision"],
-											(short)columnInfo["NumericScale"]);
-						}
-						while (dummyData.Equals(condition.Value));
-
-						dataRow[condition.Column] = dummyData;
-
-						// TODO: Co join thi sao?
-
-						break;
-					case Operators.In:
-						// Bo qua vi o tren set roi
-						break;
-					// TODO: Other Operators
-					case Operators.GreaterThan:
-					case Operators.LessThan:
-						// object data = GetDataForInequalityOperator(condition.Operator, condition.Value, null);
-						break;
-					case Operators.NotBetween:
-					default:
-						break;
 				}
 			}
 		}
@@ -696,68 +639,93 @@ namespace DataGenerator
 		/// <param name="dataDict"></param>
 		private static void SetWhereConditionValues(List<TableInfo> tableList, List<Ranking> rankingList, Dictionary<string, DataTable> dataDict)
 		{
-			// Set gia tri cho dieu kien WHERE
-			foreach (TableInfo table in tableList)
+			foreach (string rankGroup in rankingList.Select(rank => rank.RankGroup).Distinct())
 			{
-				DataTable schemaTable = GetSchemaTable(table);
-				foreach (DataRow dataRow in dataDict[table.Alias].Rows)
+				List<Ranking> currentGroupRanks = rankingList
+					.Where(rank => rank.RankGroup == rankGroup)
+					.ToList();
+				foreach (Ranking ranking in currentGroupRanks)
 				{
-					SetWhereConditionsForDataRow(table, schemaTable, dataRow);
-				}
-			}
+					if (ranking.RankingType == RankingType.Value)
+					{
+						continue;
+					}
 
-			List<Condition> allConditions = tableList.SelectMany(tbl => tbl.Conditions).ToList();
+					// Tim ra dieu kien nho hon
+					Ranking lessThanValueRank = currentGroupRanks
+						.Where(rank => rank.RankValue < ranking.RankValue && rank.RankingType == RankingType.Value)
+						.OrderByDescending(rank => rank.RankValue)
+						.FirstOrDefault();
+					if (lessThanValueRank != null)
+					{
+						SetColumnOfAllRowsToValue(dataDict[ranking.Table.Alias], ranking.Column, GetDataForInequalityOperator(Operators.GreaterThan, lessThanValueRank.Value, ranking.RankValue - lessThanValueRank.RankValue));
+					}
 
-			// Set gia tri cho dieu kien join
-			// TODO: ALL ROWS
-			foreach (Join join in tableList.SelectMany(tbl => tbl.Joins).OrderBy(j => j.Operator))
-			{
-				switch (join.Operator)
-				{
-					case Operators.Between:
-					case Operators.Equal:
-					case Operators.GreaterThanOrEqual:
-					case Operators.In:
-					case Operators.LessThanOrEqual:
-						// Neu co dieu kien WHERE tuong ung voi dieu kien JOIN, uu tien
-						if (allConditions.Exists(cnd => cnd.Table == join.Table1 && cnd.Column == join.Column1 && cnd.Operator >= Operators.Equal))
+					// Tim ra dieu kien lon hon
+					Ranking greaterThanValueRank = currentGroupRanks
+						.Where(rank => rank.RankValue > ranking.RankValue && rank.RankingType == RankingType.Value)
+						.OrderBy(rank => rank.RankValue)
+						.FirstOrDefault();
+					if (greaterThanValueRank != null)
+					{
+						SetColumnOfAllRowsToValue(dataDict[ranking.Table.Alias], ranking.Column, GetDataForInequalityOperator(Operators.LessThan, greaterThanValueRank.Value, greaterThanValueRank.RankValue - ranking.RankValue));
+					}
+
+					// Tim ra dieu kien equals
+					Ranking sameValueRank = currentGroupRanks
+						.Where(rank => rank.RankValue == ranking.RankValue && rank.RankingType == RankingType.Value)
+						.FirstOrDefault();
+					if (sameValueRank != null)
+					{
+						SetColumnOfAllRowsToValue(dataDict[ranking.Table.Alias], ranking.Column, sameValueRank.Value);
+					}
+
+					// Set lai item co gia tri rank equals
+					List<Ranking> sameValueRanks = currentGroupRanks
+						.Where(rank => rank.RankValue == ranking.RankValue && rank != ranking)
+						.ToList();
+					foreach (Ranking sameRanking in sameValueRanks)
+					{
+						if (sameRanking.RankingType == RankingType.Value)
 						{
-							//dataDict[join.Table2.Alias].Rows[0][join.Column2] = dataDict[join.Table1.Alias].Rows[0][join.Column1];
-							EditAllColumnData(join.Table2.Alias, join.Column2, dataDict[join.Table1.Alias].Rows[0][join.Column1], dataDict);
-							break;
+							continue;
 						}
 
-						//dataDict[join.Table1.Alias].Rows[0][join.Column1] = dataDict[join.Table2.Alias].Rows[0][join.Column2];
-						EditAllColumnData(join.Table1.Alias, join.Column1, dataDict[join.Table2.Alias].Rows[0][join.Column2], dataDict);
-						break;
-					case Operators.GreaterThan:
-					case Operators.LessThan:
-						// TODO Add more logic
-						object data = GetDataForInequalityOperator(
-							join.Operator,
-							dataDict[join.Table2.Alias].Rows[0][join.Column2]);
-
-						if (data != null)
+						var inConditionCount = tableList.SelectMany(tbl => tbl.Conditions)
+							.Where(cond => 
+								cond.Column == sameRanking.Column &&
+								cond.Table == sameRanking.Table &&
+								cond.Operator == Operators.In)
+							.Count();
+						if (inConditionCount > 0)
 						{
-							//dataDict[join.Table1.Alias].Rows[0][join.Column1] = data;
-							EditAllColumnData(join.Table1.Alias, join.Column1, data, dataDict);
+							// Khong set lai cho dieu kien IN
+							continue;
 						}
 
-						break;
-					// TODO: Other Operators
-					case Operators.NotBetween:
-					case Operators.NotEqual:
-					default:
-						break;
+						SetColumnOfAllRowsToValue(dataDict[sameRanking.Table.Alias], sameRanking.Column, dataDict[ranking.Table.Alias].Rows[0][ranking.Column]);
+					}
 				}
 			}
 		}
 
-		private static void EditAllColumnData(string tableName, string columnName, object data, Dictionary<string, DataTable> dataDict)
+		private static void SetColumnOfAllRowsToValue(DataTable table, string columnName, object value)
 		{
-			foreach (DataRow row in dataDict[tableName].Rows)
+			if (value is InValues)
 			{
-				row[columnName] = data;
+				List<object> values = ((IEnumerable)value).Cast<object>().ToList();
+				int count = 0;
+				for (int i = 0; i < Math.Min(table.Rows.Count, values.Count); i++)
+				{
+					table.Rows[count++][columnName] = values[i];
+				}
+
+				return;
+			}
+
+			foreach (DataRow row in table.Rows)
+			{
+				row[columnName] = value;
 			}
 		}
 
@@ -769,8 +737,13 @@ namespace DataGenerator
 		/// <param name="op">Toan tu</param>
 		/// <param name="compareValue">Gia tri so sanh</param>
 		/// <returns></returns>
-		private static object GetDataForInequalityOperator(Operators op, object compareValue)
+		private static object GetDataForInequalityOperator(Operators op, object compareValue, int step = 1)
 		{
+			if (compareValue is InValues)
+			{
+				compareValue = op == Operators.GreaterThan ? GetMinValue((InValues)compareValue) : GetMaxValue((InValues)compareValue);
+			}
+
 			object parsedValue;
 			Type objType = DetermineType(compareValue, out parsedValue);
 
@@ -779,48 +752,90 @@ namespace DataGenerator
 				case Operators.GreaterThan:
 					if (objType == typeof(DateTime))
 					{
-						return ((DateTime)parsedValue).AddDays(1).ToString(dateFormat);
+						return ((DateTime)parsedValue).AddDays(step).ToString(dateFormat);
 					}
 
 					if (objType == typeof(int))
 					{
-						return ((int)parsedValue) + 1;
+						return ((int)parsedValue) + step;
 					}
 
 					if (objType == typeof(decimal))
 					{
-						return ((decimal)parsedValue) + 1;
+						return ((decimal)parsedValue) + step;
  					}
+
+					if (objType == typeof(string) && !string.IsNullOrEmpty(compareValue as string))
+					{
+						string strVal = compareValue as string;
+						char lastChar = strVal[strVal.Length - 1];
+						lastChar += (char) step;
+						return strVal.Substring(0, strVal.Length - 1) + lastChar;
+					}
 
 					break;
 				case Operators.LessThan:
 					if (objType == typeof(DateTime))
 					{
-						return ((DateTime)parsedValue).AddDays(-1).ToString(dateFormat);
+						return ((DateTime)parsedValue).AddDays(-step).ToString(dateFormat);
 					}
 
 					if (objType == typeof(int))
 					{
-						return ((int)parsedValue) - 1;
+						return ((int)parsedValue) - step;
 					}
 
 					if (objType == typeof(decimal))
 					{
-						return ((decimal)parsedValue) - 1;
+						return ((decimal)parsedValue) - step;
  					}
+
+					if (objType == typeof(string) && !string.IsNullOrEmpty(compareValue as string))
+					{
+						string strVal = compareValue as string;
+						char lastChar = strVal[strVal.Length - 1];
+						lastChar -= (char) step;
+						return strVal.Substring(0, strVal.Length - 1) + lastChar;
+					}
 
 					break;
 				default:
 					break;
-
 			}
 
 			return null;
 		}
 
-		private static bool AreConditionsSatisfied()
+		private static object GetMaxValue(InValues value)
 		{
-			return false;
+			List<object> values = ((IEnumerable)value).Cast<object>().ToList();
+			IComparable maxValue = (IComparable)values[0];
+			foreach (var inVal in values)
+			{
+				int compareResult = maxValue.CompareTo((IComparable)inVal);
+				if (compareResult > 0)
+				{
+					maxValue = (IComparable)inVal;
+				}
+			}
+
+			return maxValue;
+		}
+
+		private static object GetMinValue(InValues value)
+		{
+			List<object> values = ((IEnumerable)value).Cast<object>().ToList();
+			IComparable minValue = (IComparable)values[0];
+			foreach (var inVal in values)
+			{
+				int compareResult = minValue.CompareTo((IComparable)inVal);
+				if (compareResult < 0)
+				{
+					minValue = (IComparable)inVal;
+				}
+			}
+
+			return minValue;
 		}
 
 		private static Type DetermineType(object value, out object parsedValue)
@@ -978,23 +993,32 @@ namespace DataGenerator
 			cancellationSource = new CancellationTokenSource();
 			this.rotateTask = Task.Run(() => this.RotateText(cancellationSource.Token), cancellationSource.Token);
 
-			bool success = await Task.Run<bool>(() => this.Initialize(query));
-			if (success)
+			try
+			{
+				bool success = await Task.Run<bool>(() => this.Initialize(query));
+				if (success)
+				{
+					if (tempData.Count > 0)
+					{
+						//btnExcel.Enabled = true;
+						//btnInsert.Enabled = true;
+
+						tableNamesComboBox.ValueMember = "Value";
+						tableNamesComboBox.DisplayMember = "Text";
+						tableNamesComboBox.DataSource = this.setting.TablesInfo.Select(t => new { Text = string.Format("{0} ({1})", t.Name, t.Alias), Value = t.Alias }).ToList();
+						tableNamesComboBox.SelectedValue = this.setting.TablesInfo[0].Alias;
+
+						SetDataSource(this.tempData[this.setting.TablesInfo[0].Alias]);
+					}
+				}
+			}
+			catch
+			{
+				throw;
+			}
+			finally
 			{
 				this.btnCancel_Click(sender, e);
-
-				if (tempData.Count > 0)
-				{
-					//btnExcel.Enabled = true;
-					//btnInsert.Enabled = true;
-
-					tableNamesComboBox.ValueMember = "Value";
-					tableNamesComboBox.DisplayMember = "Text";
-					tableNamesComboBox.DataSource = this.setting.TablesInfo.Select(t => new { Text = string.Format("{0} ({1})", t.Name, t.Alias), Value = t.Alias }).ToList();
-					tableNamesComboBox.SelectedValue = this.setting.TablesInfo[0].Alias;
-
-					SetDataSource(this.tempData[this.setting.TablesInfo[0].Alias]);
-				}
 			}
 
 			btnParse.Enabled = true;
@@ -1105,6 +1129,7 @@ namespace DataGenerator
 				this.cancellationSource.Cancel();
 				await this.rotateTask;
 				lblStatus.Text = string.Empty;
+				btnParse.Enabled = true;
 
 				this.rotateTask.Dispose();
 				this.rotateTask = null;

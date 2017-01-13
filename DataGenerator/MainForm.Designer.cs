@@ -76,7 +76,7 @@
 			this.tableNamesComboBox.FormattingEnabled = true;
 			this.tableNamesComboBox.Location = new System.Drawing.Point(11, 32);
 			this.tableNamesComboBox.Name = "tableNamesComboBox";
-			this.tableNamesComboBox.Size = new System.Drawing.Size(214, 20);
+			this.tableNamesComboBox.Size = new System.Drawing.Size(348, 20);
 			this.tableNamesComboBox.TabIndex = 2;
 			this.tableNamesComboBox.ValueMember = "Value";
 			this.tableNamesComboBox.SelectedIndexChanged += new System.EventHandler(this.tableNamesComboBox_SelectedIndexChanged);
@@ -106,7 +106,7 @@
 			// 
 			// btnPrevTable
 			// 
-			this.btnPrevTable.Location = new System.Drawing.Point(231, 30);
+			this.btnPrevTable.Location = new System.Drawing.Point(365, 30);
 			this.btnPrevTable.Name = "btnPrevTable";
 			this.btnPrevTable.Size = new System.Drawing.Size(21, 23);
 			this.btnPrevTable.TabIndex = 3;
@@ -116,7 +116,7 @@
 			// 
 			// btnNextTable
 			// 
-			this.btnNextTable.Location = new System.Drawing.Point(258, 30);
+			this.btnNextTable.Location = new System.Drawing.Point(392, 30);
 			this.btnNextTable.Name = "btnNextTable";
 			this.btnNextTable.Size = new System.Drawing.Size(21, 23);
 			this.btnNextTable.TabIndex = 3;
