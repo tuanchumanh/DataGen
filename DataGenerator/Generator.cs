@@ -66,7 +66,7 @@ namespace DataGenerator
 			}
 
 			columnName = GetAbbreviatedName(columnName);
-			if (columnName.Length >= length + 1)
+			if (columnName.Length >= length)
 			{
 				return columnName[0] + numberDict.AddOrUpdate(columnName, 1, (key, oldValue) => oldValue + 1).ToString().PadLeft(length - 1, '0');
 			}
