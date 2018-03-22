@@ -419,6 +419,16 @@ namespace DataGenerator
 				ColumnReferenceExpression join1 = (ColumnReferenceExpression)compareExpression.FirstExpression;
 				ColumnReferenceExpression join2 = (ColumnReferenceExpression)compareExpression.SecondExpression;
 
+				if(join1.MultiPartIdentifier.Identifiers.Count == 1)
+				{
+					throw new InvalidOperationException(string.Format("Cannot detect table at line {0} for column {1}", join1.StartLine, join1.MultiPartIdentifier.Identifiers[0].Value));
+				}
+
+				if(join2.MultiPartIdentifier.Identifiers.Count == 1)
+				{
+					throw new InvalidOperationException(string.Format("Cannot detect table at line {0} for column {1}", join2.StartLine, join2.MultiPartIdentifier.Identifiers[0].Value));
+				}
+
 				string table1Alias = join1.MultiPartIdentifier.Identifiers[0].Value;
 				string table1Column = join1.MultiPartIdentifier.Identifiers[1].Value;
 
@@ -572,7 +582,7 @@ namespace DataGenerator
 			TableInfo targetTable = null;
 			foreach (TableInfo table in tableList)
 			{
-				using (SqlConnection conn = new SqlConnection(ConfigurationManager.ConnectionStrings["NULDEMOConnectionString"].ToString()))
+				using (SqlConnection conn = new SqlConnection(ConfigurationManager.ConnectionStrings["TargetDB"].ToString()))
 				using (SqlCommand cmd = new SqlCommand())
 				{
 					// Get schema

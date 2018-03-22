@@ -19,7 +19,7 @@ namespace DataGenerator
 	{
 		private Mapping setting;
 		private Dictionary<string, DataTable> tempData = new Dictionary<string, DataTable>();
-		private readonly static string connectionString = ConfigurationManager.ConnectionStrings["NULDEMOConnectionString"].ToString();
+		private readonly static string connectionString = ConfigurationManager.ConnectionStrings["TargetDB"].ToString();
 		private string[] commandLineArgs;
 
 		public MainForm()
