@@ -78,14 +78,14 @@ namespace DataGenerator
 			}
 
 			// Duplicate alias
-			//foreach (TableInfo table in tableList)
-			//{
-			//	if (tableList.Where(tbl => tbl != table).Any(tbl => tbl.Alias == table.Alias))
-			//	{
-			//		ParseError error = new ParseError(0, 0, 0, 0, string.Format("Duplicate alias: {0} {1}", table.Alias, table.Name));
-			//		errors.Add(error);
-			//	}
-			//}
+			foreach(TableInfo table in tableList)
+			{
+				if(tableList.Where(tbl => tbl != table).Any(tbl => tbl.Alias == table.Alias))
+				{
+					ParseError error = new ParseError(0, 0, 0, 0, string.Format("Duplicate alias: {0} {1}", table.Alias, table.Name));
+					errors.Add(error);
+				}
+			}
 
 			this.ranking = SqlParser.GetRanking(tableList)
 				.OrderBy(x => x.RankGroup)
@@ -120,7 +120,7 @@ namespace DataGenerator
 
 				if(binaryExpression.BinaryQueryExpressionType == BinaryQueryExpressionType.Union)
 				{
-					SqlParser.GetTableListFromQueryExpression(binaryExpression.FirstQueryExpression, tableList);
+					//SqlParser.GetTableListFromQueryExpression(binaryExpression.FirstQueryExpression, tableList);
 					SqlParser.GetTableListFromQueryExpression(binaryExpression.SecondQueryExpression, tableList);
 				}
 			}
