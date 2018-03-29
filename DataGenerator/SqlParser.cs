@@ -78,14 +78,14 @@ namespace DataGenerator
 			}
 
 			// Duplicate alias
-			foreach (TableInfo table in tableList)
-			{
-				if (tableList.Where(tbl => tbl != table).Any(tbl => tbl.Alias == table.Alias))
-				{
-					ParseError error = new ParseError(0, 0, 0, 0, string.Format("Duplicate alias: {0} {1}", table.Alias, table.Name));
-					errors.Add(error);
-				}
-			}
+			//foreach (TableInfo table in tableList)
+			//{
+			//	if (tableList.Where(tbl => tbl != table).Any(tbl => tbl.Alias == table.Alias))
+			//	{
+			//		ParseError error = new ParseError(0, 0, 0, 0, string.Format("Duplicate alias: {0} {1}", table.Alias, table.Name));
+			//		errors.Add(error);
+			//	}
+			//}
 
 			this.ranking = SqlParser.GetRanking(tableList)
 				.OrderBy(x => x.RankGroup)
@@ -117,9 +117,12 @@ namespace DataGenerator
 			else if (expression is BinaryQueryExpression)
 			{
 				BinaryQueryExpression binaryExpression = (BinaryQueryExpression)expression;
-				// TODO: UNION EXCEPT Support?
-				// SqlParser.GetTableListFromQueryExpression(binaryExpression.FirstQueryExpression, tableList);
-				SqlParser.GetTableListFromQueryExpression(binaryExpression.SecondQueryExpression, tableList);
+
+				if(binaryExpression.BinaryQueryExpressionType == BinaryQueryExpressionType.Union)
+				{
+					SqlParser.GetTableListFromQueryExpression(binaryExpression.FirstQueryExpression, tableList);
+					SqlParser.GetTableListFromQueryExpression(binaryExpression.SecondQueryExpression, tableList);
+				}
 			}
 			else if (expression is QueryParenthesisExpression)
 			{
@@ -161,6 +164,13 @@ namespace DataGenerator
 
 				// Lay ra chi tiet noi dung join
 				SqlParser.GetJoins(join, tableList);
+			}
+
+			if(tableRef is QueryDerivedTable)
+			{
+				QueryDerivedTable queryDerivedTable = (QueryDerivedTable)tableRef;
+				var expression = queryDerivedTable.QueryExpression;
+				SqlParser.GetTableListFromQueryExpression(expression, tableList);
 			}
 		}
 

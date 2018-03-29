@@ -329,7 +329,7 @@ namespace DataGenerator
 					conditionsBuilder.AppendLine(" WHERE 1=1 AND");
 
 					AppendWhereConditions(table1.Alias, cmd.Parameters, table1.Conditions, conditionsBuilder);
-					AppendWhereConditions(table2.Alias, cmd.Parameters, table1.Conditions, conditionsBuilder);
+					AppendWhereConditions(table2.Alias, cmd.Parameters, table2.Conditions, conditionsBuilder);
 
 					conditionsBuilder.Remove(conditionsBuilder.Length - 5, 3);
 
@@ -351,7 +351,10 @@ namespace DataGenerator
 
 					cmd.CommandText = mainQueryBuilder.ToString();
 
-					conn.Open();
+					if(conn.State != ConnectionState.Open)
+					{
+						conn.Open();
+					}
 
 					using (SqlDataAdapter adapter = new SqlDataAdapter(cmd))
 					{
