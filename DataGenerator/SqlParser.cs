@@ -422,7 +422,7 @@ namespace DataGenerator
 
 		private static void AddComparisonCondition(BooleanComparisonExpression compareExpression, List<TableInfo> tableList)
 		{
-			if (compareExpression.FirstExpression is ColumnReferenceExpression
+			if(compareExpression.FirstExpression is ColumnReferenceExpression
 				&& compareExpression.SecondExpression is ColumnReferenceExpression)
 			{
 				// Ca 2 deu la reference => Dieu kien join
@@ -448,7 +448,7 @@ namespace DataGenerator
 				TableInfo table1 = tableList.FirstOrDefault(tbl => tbl.Alias == table1Alias);
 				TableInfo table2 = tableList.FirstOrDefault(tbl => tbl.Alias == table2Alias);
 
-				if (table1 != null && table2 != null)
+				if(table1 != null && table2 != null)
 				{
 					Join join = new Join()
 					{
@@ -461,7 +461,7 @@ namespace DataGenerator
 
 					table1.Joins.Add(join);
 				}
-				else if (table1 != null)
+				else if(table1 != null)
 				{
 					// Khong tim thay bang => Subquery
 					// Lay ra danh sach bang trong subquery
@@ -470,7 +470,7 @@ namespace DataGenerator
 						.ToList();
 
 					TableInfo targetTable = SqlParser.GetTableHavingColumn(table2Column, subQueryTableList);
-					if (targetTable != null)
+					if(targetTable != null)
 					{
 						Join join = new Join()
 						{
@@ -484,14 +484,14 @@ namespace DataGenerator
 						table1.Joins.Add(join);
 					}
 				}
-				else if (table2 != null)
+				else if(table2 != null)
 				{
 					List<TableInfo> subQueryTableList = tableList
 						.Where(tbl => tbl.SubqueryAlias.Contains(table1Alias))
 						.ToList();
 
 					TableInfo targetTable = SqlParser.GetTableHavingColumn(table1Column, subQueryTableList);
-					if (targetTable != null)
+					if(targetTable != null)
 					{
 						Join join = new Join()
 						{
@@ -514,7 +514,7 @@ namespace DataGenerator
 
 					TableInfo targetTable1 = SqlParser.GetTableHavingColumn(table1Column, subQueryTableList);
 					TableInfo targetTable2 = SqlParser.GetTableHavingColumn(table2Column, subQueryTableList);
-					if (targetTable1 != null && targetTable2 != null)
+					if(targetTable1 != null && targetTable2 != null)
 					{
 
 						Join join = new Join()
@@ -530,7 +530,7 @@ namespace DataGenerator
 					}
 				}
 			}
-			else if (compareExpression.FirstExpression is ColumnReferenceExpression
+			else if(compareExpression.FirstExpression is ColumnReferenceExpression
 				&& compareExpression.SecondExpression is Literal)
 			{
 				// 1 cai la Reference, 1 cai la value => Dieu kien
@@ -538,12 +538,12 @@ namespace DataGenerator
 				Literal stringValue = (Literal)compareExpression.SecondExpression;
 
 				// Lay ra table name cua dieu kien tu Identifier cua Reference
-				string colName = joinLeft.MultiPartIdentifier.Identifiers[joinLeft.MultiPartIdentifier.Identifiers.Count - 1].Value; ;
+				string colName = joinLeft.MultiPartIdentifier.Identifiers[joinLeft.MultiPartIdentifier.Identifiers.Count - 1].Value;
 
 				// Tim ra table tuong ung
 				TableInfo targetTable = SqlParser.GetTableHavingColumn(colName, joinLeft, tableList);
 
-				if (targetTable != null)
+				if(targetTable != null)
 				{
 					Condition condition = new Condition()
 					{
@@ -554,6 +554,34 @@ namespace DataGenerator
 					};
 
 					targetTable.Conditions.Add(condition);
+				}
+			}
+			else if(compareExpression.FirstExpression is ConvertCall
+				&& compareExpression.SecondExpression is Literal)
+			{
+				ConvertCall joinLeft = (ConvertCall)compareExpression.FirstExpression;
+				Literal stringValue = (Literal)compareExpression.SecondExpression;
+
+				if(joinLeft.Parameter is ColumnReferenceExpression)
+				{
+					var identifiers = ((ColumnReferenceExpression)joinLeft.Parameter).MultiPartIdentifier.Identifiers;
+					string colName = identifiers[identifiers.Count - 1].Value;
+
+					// Tim ra table tuong ung
+					TableInfo targetTable = SqlParser.GetTableHavingColumn(colName, (ColumnReferenceExpression)joinLeft.Parameter, tableList);
+
+					if(targetTable != null)
+					{
+						Condition condition = new Condition()
+						{
+							Table = targetTable,
+							Column = colName,
+							Value = stringValue.Value,
+							Operator = SqlParser.GetOperator(compareExpression.ComparisonType),
+						};
+
+						targetTable.Conditions.Add(condition);
+					}
 				}
 			}
 		}

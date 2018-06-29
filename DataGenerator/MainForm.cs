@@ -745,7 +745,26 @@ namespace DataGenerator
 
 			foreach (DataRow row in table.Rows)
 			{
-				row[columnName] = value;
+				if(table.Columns[columnName].DataType == typeof(DateTime))
+				{
+					DateTime dateValue;
+					if(DateTime.TryParse(Convert.ToString(value), out dateValue))
+					{
+						row[columnName] = dateValue;
+					}
+					else if(DateTime.TryParseExact(Convert.ToString(value), "yyyyMMdd", null, System.Globalization.DateTimeStyles.None, out dateValue))
+					{
+						row[columnName] = dateValue;
+					}
+					else
+					{
+						row[columnName] = DateTime.Now;
+					}
+				}
+				else
+				{
+					row[columnName] = value;
+				}
 			}
 		}
 
