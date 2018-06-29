@@ -763,7 +763,7 @@ namespace DataGenerator
 				}
 				else
 				{
-					row[columnName] = value;
+					row[columnName] = value.ToString().Trim();
 				}
 			}
 		}
